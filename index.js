@@ -1,13 +1,14 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 
 const scene = new THREE.Scene();
-const fogColor = 0x3a2e55;
+const fogColor = 0x4b3b6b;
 scene.background = new THREE.Color(fogColor);
 scene.fog = new THREE.FogExp2(fogColor, 0.015);
 
 const cam = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 150);
-cam.position.set(0, 16, 15);
+cam.position.set(0, 5, 15);
 cam.lookAt(0, 0, -10);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -33,6 +34,11 @@ const groundMaterial = new THREE.MeshStandardMaterial({
 
 // setup lightning
 const moonLight = new THREE.DirectionalLight(0xffffff, 2.5);
+const playerLight = new THREE.DirectionalLight(0xffffff, 1);
+playerLight.position.set(0, 10, 0);
+scene.add(playerLight);
+moonLight.color.set(0xbfcfff);
+moonLight.intensity = 2;
 moonLight.position.set(-20, 50, 20);
 moonLight.castShadow = true;
 moonLight.shadow.mapSize.width = 2048;
@@ -44,12 +50,40 @@ moonLight.shadow.camera.bottom = -50;
 moonLight.shadow.bias = -0.0005;
 scene.add(moonLight);
 
-const hemiLight = new THREE.HemisphereLight(0x8888cc, 0x202040, 1.5);
+const hemiLight = new THREE.HemisphereLight(0xffe6b3, 0x3a2f4f, 1.8);
 scene.add(hemiLight);
 
 // load aset2 model
 const loader = new GLTFLoader();
 const assets = {};
+
+// color pallete
+const ASSET_COLORS = {
+  road: 0x3a2f2a,
+  fence: 0x6b6b6b,
+  fenceDamaged: 0x5a5a5a,
+
+  tree: 0x3f6b4f,
+  trunk: 0x7a4a2e,
+  rock: 0x6f6f6f,
+  grave: 0x9c9c9c,
+  crypt: 0x7a7a7a,
+
+  debris: 0x5a5a5a,
+  shovel: 0x7a7a7a,
+
+  pumpkin: 0xff8c1a,
+  lantern: 0x8a8a8a,
+};
+
+// helper material
+function tintMaterial(material, color, rough = 0.7, metal = 0.05) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: rough,
+    metalness: metal,
+  });
+}
 
 async function loadAssets() {
   const models = {
@@ -71,17 +105,66 @@ async function loadAssets() {
     const gltf = await loader.loadAsync(models[key]);
     assets[key] = gltf.scene;
     assets[key].traverse((c) => {
-      if (c.isMesh) {
-        c.castShadow = true;
-        c.receiveShadow = true;
-        if (c.material.map) c.material.map.anisotropy = 16;
+    if (c.isMesh) {
+      c.castShadow = true;
+      c.receiveShadow = true;
+
+      if (c.material.map) {
+        c.material.map.anisotropy = 16;
+        c.material.color.set(0xffffff);
+      } else {
+        const color = ASSET_COLORS[key] ?? 0xffffff;
+
+        c.material = tintMaterial(
+          c.material,
+          color,
+          0.75,
+          key === "shovel" ? 0.3 : 0.05
+        );
       }
-    });
+
+      // 🎃 Pumpkin glow (HANYA untuk pumpkin)
+      if (key === "pumpkin") {
+        c.material.emissive = new THREE.Color(0xffa500);
+        c.material.emissiveIntensity = 0.5;
+      }
+    }
+  });
+
   });
 
   await Promise.all(load);
 
   createEnv();
+}
+
+function loadPlayer() {
+  const fbxLoader = new FBXLoader();
+
+  fbxLoader.load("./model/characterMedium.fbx", (fbx) => {
+    player = fbx;
+
+    // ⚠️ SKALA & POSISI FIX
+    player.scale.set(0.05, 0.05, 0.05);
+    player.position.set(0, -5.2, -5);
+
+    player.traverse((c) => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+      }
+    });
+
+    // animasi
+    if (fbx.animations.length > 0) {
+      playerMixer = new THREE.AnimationMixer(player);
+      const action = playerMixer.clipAction(fbx.animations[0]);
+      action.play();
+    }
+
+    scene.add(player);
+    console.log("PLAYER LOADED", player);
+  });
 }
 
 // generate environment --
@@ -166,8 +249,9 @@ function createsegment(z_offset) {
       lantern.scale.set(1.5, 1.5, 1.5);
       segmentGroup.add(lantern);
 
-      const light = new THREE.PointLight(0xffaa00, 2, 8);
+      const light = new THREE.PointLight(0xffcc66, 2.5, 10);
       light.position.set(lx, 1.5, z);
+      light.castShadow = true;
       segmentGroup.add(light);
     }
   }
@@ -221,15 +305,20 @@ function createEnv() {
 }
 
 // --
+let player;
+let playerMixer;
 const clock = new THREE.Clock();
 function draw() {
   requestAnimationFrame(draw);
   const delta = clock.getDelta();
 
+  if (playerMixer) {
+    playerMixer.update(delta);
+  }
+
   segments.forEach((segment) => {
     segment.position.z += game_speed * delta;
 
-    // Reset segment
     if (segment.position.z > segment_length) {
       const farZ = Math.min(...segments.map((c) => c.position.z));
       segment.position.z = farZ - segment_length + 0.1;
@@ -246,3 +335,5 @@ window.addEventListener("resize", () => {
 });
 
 loadAssets();
+loadPlayer();
+
