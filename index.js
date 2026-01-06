@@ -198,6 +198,42 @@ function loadPlayer() {
   });
 }
 
+let zombies = []; // Untuk nyimpen zombie yang di-spawn
+const zombieMixer = []; // Untuk menangani animasi zombie
+
+async function spawnZombie(zPos) {
+    console.log("Zombie di-spawn!");
+    if (!assets.road) return;
+
+    loader.load("./model/zombie.glb", (gltf) => {
+        const zombie = gltf.scene;
+        
+        // Pilih jalur acak (0, 1, atau 2)
+        const lane = Math.floor(Math.random() * 3);
+        zombie.position.set(laneX[lane], 0, zPos);
+        zombie.scale.set(1, 1, 1);
+
+        zombie.traverse(c => {
+            if (c.isMesh) {
+                c.castShadow = true;
+                c.receiveShadow = true;
+            }
+        });
+
+        scene.add(zombie);
+        zombies.push(zombie);
+
+        // Tambahkan animasi jalan zombie
+        if (gltf.animations.length > 0) {
+            const mixer = new THREE.AnimationMixer(zombie);
+            const action = mixer.clipAction(gltf.animations[0]); // Ambil animasi pertama
+            
+            action.play();
+            zombieMixer.push(mixer);
+        }
+    });
+}
+
 // bikin track jalanan --
 const segments = [];
 const segment_length = 20;
@@ -326,6 +362,10 @@ async function createEnv() {
     createsegment(-i * segment_length);
   }
 
+  spawnZombie(-60);
+  spawnZombie(-100);
+  spawnZombie(-140);
+
   draw();
 }
 
@@ -362,6 +402,23 @@ function draw() {
   }
 
   controls.update();
+
+  zombieMixer.forEach(mixer =>
+     mixer.update(delta));
+    
+  zombies.forEach((zombie, index) => {
+        // Zombie bergerak mendekat (ke arah Z positif)
+        // Ditambah game_speed agar terasa lebih cepat 
+        zombie.position.z += (game_speed + 2) * delta;
+
+        // Jika zombie sudah lewat di belakang player, reset ke depan
+        if (zombie.position.z > 10) {
+            zombie.position.z = -140; // Muncul lagi di kejauhan
+            const lane = Math.floor(Math.random() * 3);
+            zombie.position.x = laneX[lane];
+        }
+    });
+
 
   // Jalanin semua objek ke arah kamera
   segments.forEach((segment) => {
