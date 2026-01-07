@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 
 const scene = new THREE.Scene();
 const fogColor = 0x4b3b6b;
@@ -63,6 +64,7 @@ scene.add(hemiLight);
 // load model-model 3D nya
 const loader = new GLTFLoader();
 const assets = {};
+const assetResources = {};
 
 // daftar warna buat material
 const ASSET_COLORS = {
@@ -92,6 +94,14 @@ function tintMaterial(material, color, rough = 0.7, metal = 0.05) {
   });
 }
 
+// Konfigurasi Zombie: Atur path model dan skala (scale) di sini
+const ZOMBIE_CONFIG = {
+  zombie1: { path: "./model/zombie.glb", scale: 0.9 },  // Zombie.glb biasanya besar
+  zombie2: { path: "./model/zombie1.glb", scale: 0.5 }, // Zombie1.glb
+  zombie3: { path: "./model/zombie2.glb", scale: 1.4 }, // Zombie2.glb
+  zombie4: { path: "./model/bat.glb", scale: 1.4 }, // Zombie2.glb
+};
+
 async function loadAssets() {
   const models = {
     road: "./model/road.glb",
@@ -106,10 +116,15 @@ async function loadAssets() {
     trunk: "./model/trunk.glb",
     debris: "./model/debris.glb",
     shovel: "./model/shovel.glb",
+    zombie1: ZOMBIE_CONFIG.zombie1.path,
+    zombie2: ZOMBIE_CONFIG.zombie2.path,
+    zombie3: ZOMBIE_CONFIG.zombie3.path,
+    zombie4: ZOMBIE_CONFIG.zombie4.path
   };
 
   const load = Object.keys(models).map(async (key) => {
     const gltf = await loader.loadAsync(models[key]);
+    assetResources[key] = gltf;
     assets[key] = gltf.scene;
     assets[key].traverse((c) => {
       if (c.isMesh) {
@@ -155,7 +170,7 @@ function loadPlayer() {
 
         // Atur ukuran dan posisi awal
         player.scale.set(1.5, 1.5, 1.5); // skala
-        player.position.set(0, 0, 8);    // posisi di depan kamera dikit
+        player.position.set(0, 0, 6);    // posisi di depan kamera dikit
         player.rotation.y = Math.PI;     // menghadap depan
 
         // Bayangan
@@ -173,17 +188,39 @@ function loadPlayer() {
           playerMixer = new THREE.AnimationMixer(player);
           const animations = gltf.animations;
 
-          // Cek ada animasi apa aja
-          console.log("Daftar Animasi:", animations.map((a, i) => `${i}: ${a.name}`));
+          // Cari animasi lari (Run) dan lompat (Jump)
+          const clipRun = animations.find(a => a.name.toLowerCase().includes('run'));
+          const clipJump = animations.find(a => a.name.toLowerCase().includes('jump')) || animations.find(a => a.name.toLowerCase().includes('attack')); // Fallback attack kalo ga ada jump
+          const clipRoll = animations.find(a => a.name.toLowerCase().includes('roll'));
 
-          // Cari animasi lari (Run)
-          const runClip = animations.find(a => a.name.toLowerCase().includes('run'));
-
-          if (runClip) {
-            const action = playerMixer.clipAction(runClip);
-            action.play();
-            console.log("Playing (Found 'Run'):", runClip.name);
+          if (clipRun) {
+            runAction = playerMixer.clipAction(clipRun);
+            runAction.play();
           }
+
+          if (clipJump) {
+            jumpAction = playerMixer.clipAction(clipJump);
+            jumpAction.loop = THREE.LoopOnce; // Jangan looping
+            jumpAction.clampWhenFinished = true;
+          }
+
+          if (clipRoll) {
+            rollAction = playerMixer.clipAction(clipRoll);
+            rollAction.loop = THREE.LoopOnce; // Jangan looping
+            rollAction.clampWhenFinished = true;
+          }
+
+          // Listener ketika animasi selesai (untuk Roll)
+          playerMixer.addEventListener('finished', (e) => {
+            if (e.action === rollAction) {
+              isRolling = false;
+              if (runAction) {
+                rollAction.crossFadeTo(runAction, 0.1, true);
+                runAction.reset();
+                runAction.play();
+              }
+            }
+          });
         }
 
         console.log("PLAYER LOADED (Adventurer)");
@@ -201,37 +238,76 @@ function loadPlayer() {
 let zombies = []; // Untuk nyimpen zombie yang di-spawn
 const zombieMixer = []; // Untuk menangani animasi zombie
 
-async function spawnZombie(zPos) {
-    console.log("Zombie di-spawn!");
-    if (!assets.road) return;
+function spawnOneZombie(modelKey, x, z) {
+  const resource = assetResources[modelKey];
+  if (!resource) return;
 
-    loader.load("./model/zombie.glb", (gltf) => {
-        const zombie = gltf.scene;
-        
-        // Pilih jalur acak (0, 1, atau 2)
-        const lane = Math.floor(Math.random() * 3);
-        zombie.position.set(laneX[lane], 0, zPos);
-        zombie.scale.set(1, 1, 1);
+  const zombie = SkeletonUtils.clone(resource.scene);
 
-        zombie.traverse(c => {
-            if (c.isMesh) {
-                c.castShadow = true;
-                c.receiveShadow = true;
-            }
-        });
+  // Custom Logic untuk Bat (zombie4)
+  if (modelKey === 'zombie4') {
+    zombie.position.set(x, 1.6, z); // Terbang agak tinggi
+    zombie.rotation.y = -Math.PI / 2;    // Putar balik biar menghadap player (sesuaikan jika perlu)
+  } else {
+    zombie.position.set(x, 0, z);
+  }
 
-        scene.add(zombie);
-        zombies.push(zombie);
+  // Scale sesuai konfigurasi per zombie
+  const config = ZOMBIE_CONFIG[modelKey];
+  const s = config ? config.scale : 1.0;
+  zombie.scale.set(s, s, s);
 
-        // Tambahkan animasi jalan zombie
-        if (gltf.animations.length > 0) {
-            const mixer = new THREE.AnimationMixer(zombie);
-            const action = mixer.clipAction(gltf.animations[0]); // Ambil animasi pertama
-            
-            action.play();
-            zombieMixer.push(mixer);
-        }
-    });
+  if (resource.animations && resource.animations.length > 0) {
+    const mixer = new THREE.AnimationMixer(zombie);
+
+    // Cari animasi lari (Run), Jalan (Walk), atau Terbang (Fly)
+    let clip = resource.animations.find(a => a.name.toLowerCase().includes("run"));
+    if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("walk"));
+    if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("fly")); // Buat kelelawar
+    if (!clip) clip = resource.animations[8] || resource.animations[0];
+
+    // FIX GLITCH: Hapus track posisi root
+    const tracks = clip.tracks.filter(t => !t.name.endsWith(".position"));
+    const fixedClip = new THREE.AnimationClip(clip.name, clip.duration, tracks);
+
+    const action = mixer.clipAction(fixedClip);
+    action.play();
+    zombie.userData.mixer = mixer;
+  }
+
+  zombie.traverse((c) => {
+    if (c.isMesh) {
+      c.castShadow = true;
+      c.receiveShadow = true;
+    }
+  });
+
+  scene.add(zombie);
+  zombies.push(zombie);
+}
+
+function spawnInitialZombies() {
+  const zombieTypes = ["zombie1", "zombie2", "zombie3", "zombie4"];
+  let zPos = -60;
+
+  // Spawn 12 gelombang
+  for (let i = 0; i < 12; i++) {
+    const isDouble = Math.random() < 0.3; // 30% double spawn
+
+    if (isDouble) {
+      const lanes = [0, 1, 2].sort(() => 0.5 - Math.random()).slice(0, 2);
+      lanes.forEach(lane => {
+        const type = zombieTypes[Math.floor(Math.random() * zombieTypes.length)];
+        spawnOneZombie(type, laneX[lane], zPos);
+      });
+    } else {
+      const lane = Math.floor(Math.random() * 3);
+      const type = zombieTypes[Math.floor(Math.random() * zombieTypes.length)];
+      spawnOneZombie(type, laneX[lane], zPos);
+    }
+
+    zPos -= (25 + Math.random() * 15);
+  }
 }
 
 // bikin track jalanan --
@@ -362,15 +438,20 @@ async function createEnv() {
     createsegment(-i * segment_length);
   }
 
-  spawnZombie(-60);
-  spawnZombie(-100);
-  spawnZombie(-140);
+  spawnInitialZombies();
 
   draw();
 }
 
 let player;
 let playerMixer;
+let runAction, jumpAction, rollAction; // Action untuk animasi
+let isJumping = false;
+let isRolling = false;
+let jumpVelocity = 0;
+const GRAVITY = 35; // Gravitasi lebih kuat biar "berat"
+const JUMP_FORCE = 12; // Kekuatan lompat
+
 const clock = new THREE.Clock();
 
 // Logika pindah jalur (kiri - tengah - kanan)
@@ -384,6 +465,26 @@ window.addEventListener("keydown", (e) => {
     if (currentLane > 0) currentLane--;
   } else if (e.key === "d" || e.key === "ArrowRight") {
     if (currentLane < 2) currentLane++;
+  } else if ((e.key === "w" || e.key === "ArrowUp") && !isJumping && !isRolling) {
+
+    // Tombol Lompat
+    isJumping = true;
+    jumpVelocity = JUMP_FORCE;
+
+    // Transisi Animasi: Lari -> Lompat
+    if (jumpAction && runAction) {
+      runAction.crossFadeTo(jumpAction, 0.1, true);
+      jumpAction.reset();
+      jumpAction.play();
+    }
+  } else if ((e.key === "s" || e.key === "ArrowDown") && !isRolling && !isJumping) {
+    isRolling = true;
+
+    if (rollAction && runAction) {
+      runAction.crossFadeTo(rollAction, 0.1, true);
+      rollAction.reset();
+      rollAction.play();
+    }
   }
 });
 
@@ -397,27 +498,61 @@ function draw() {
 
   // Geser player ke jalur yg dipilih (pake lerp biar halus)
   if (player) {
+    // Geser X (Lane)
     const targetX = laneX[currentLane];
     player.position.x = THREE.MathUtils.lerp(player.position.x, targetX, 10 * delta);
+
+    // Geser Y (Lompat/Gravitasi)
+    if (isJumping) {
+      player.position.y += jumpVelocity * delta;
+      jumpVelocity -= GRAVITY * delta;
+
+      // Mendarat ke tanah
+      if (player.position.y <= 0) {
+        player.position.y = 0;
+        isJumping = false;
+        jumpVelocity = 0;
+
+        // Transisi Animasi: Lompat -> Lari
+        if (jumpAction && runAction) {
+          jumpAction.crossFadeTo(runAction, 0.2, true);
+          runAction.reset();
+          runAction.play();
+        }
+      }
+    }
   }
 
   controls.update();
 
-  zombieMixer.forEach(mixer =>
-     mixer.update(delta));
-    
-  zombies.forEach((zombie, index) => {
-        // Zombie bergerak mendekat (ke arah Z positif)
-        // Ditambah game_speed agar terasa lebih cepat 
-        zombie.position.z += (game_speed + 2) * delta;
+  zombies.forEach((zombie) => {
+    // Cek apakah mixer tersedia di userData
+    if (zombie.userData.mixer) {
+      zombie.userData.mixer.update(delta);
+    }
 
-        // Jika zombie sudah lewat di belakang player, reset ke depan
-        if (zombie.position.z > 10) {
-            zombie.position.z = -140; // Muncul lagi di kejauhan
-            const lane = Math.floor(Math.random() * 3);
-            zombie.position.x = laneX[lane];
-        }
-    });
+    // Logika pergerakan zombie
+    zombie.position.z += (game_speed + 2) * delta;
+
+    if (zombie.position.z > 10) {
+      // Recycle ke belakang
+      const minZ = Math.min(...zombies.map(z => z.position.z));
+
+      // Chance untuk grouping/sejajar
+      const gap = Math.random() < 0.25 ? 0 : (25 + Math.random() * 20);
+      zombie.position.z = minZ - gap;
+
+      if (gap === 0) {
+        // Cari lane yang kosong di minZ
+        const buddy = zombies.find(z => Math.abs(z.position.z - minZ) < 5);
+        const busyLaneX = buddy ? buddy.position.x : -999;
+        const availableLanes = laneX.filter(x => x !== busyLaneX);
+        zombie.position.x = availableLanes.length > 0 ? availableLanes[Math.floor(Math.random() * availableLanes.length)] : laneX[Math.floor(Math.random() * 3)];
+      } else {
+        zombie.position.x = laneX[Math.floor(Math.random() * 3)];
+      }
+    }
+  });
 
 
   // Jalanin semua objek ke arah kamera
