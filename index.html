@@ -4,18 +4,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <style>
-        * {
-            padding: 0;
-            margin: 0;
-        }
-    </style>
+    <title>ZomBrush</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
     <script src="index.js" type="module"></script>
 </head>
 
 <body>
+    <div id="landing-page">
+        <div class="title-container">
+            <h1>ZombRush</h1>
+            <div class="subtitle">Survive the Spooky Forest!</div>
+        </div>
+        
+        <div class="menu-container">
+            <button id="play-btn">PLAY NOW</button>
+            <button class="secondary-btn" onclick="alert('Settings feature coming soon!')">SETTINGS</button>
+        </div>
+        
+        <!-- <div class="footer">Project UAS Grafika Komputer</div> -->
+    </div>
 
+    <!-- Game Over Screen -->
+    <div id="game-over-page" class="hidden">
+        <div class="title-container">
+            <h1 style="color: #ff0000; -webkit-text-stroke: 4px white; text-shadow: 6px 6px 0px #3e0000, 12px 12px 0px rgba(0,0,0,0.2);">GAME OVER</h1>
+        </div>
+        
+        <div class="menu-container">
+            <button id="retry-btn">RETRY</button>
+            <button id="home-btn" class="secondary-btn">HOME</button>
+        </div>
+    </div>
 </body>
 
 </html>

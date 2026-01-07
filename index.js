@@ -4,6 +4,109 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 
 const scene = new THREE.Scene();
+
+// Game State
+let gameStarted = false;
+const landingPage = document.getElementById("landing-page");
+const playBtn = document.getElementById("play-btn");
+
+// Game Over UI
+const gameOverPage = document.getElementById("game-over-page");
+const retryBtn = document.getElementById("retry-btn");
+const homeBtn = document.getElementById("home-btn");
+
+playBtn.addEventListener("click", () => {
+    landingPage.classList.add("hidden");
+    gameStarted = true;
+    if (player) {
+        player.visible = true;
+    }
+    spawnInitialZombies(); // Spawn zombie saat tombol play ditekan
+});
+
+// Retry Button
+retryBtn.addEventListener("click", () => {
+    gameOverPage.classList.add("hidden");
+    resetGame();
+    gameStarted = true;
+    if (player) player.visible = true;
+    spawnInitialZombies();
+});
+
+// Home Button
+homeBtn.addEventListener("click", () => {
+    gameOverPage.classList.add("hidden");
+    landingPage.classList.remove("hidden");
+    resetGame();
+    gameStarted = false; // Back to menu state
+    if (player) player.visible = false;
+});
+
+function resetGame() {
+    // Clear zombies
+    zombies.forEach(z => scene.remove(z));
+    zombies = [];
+    
+    // Reset player position
+    currentLane = 1;
+    if (player) {
+        player.position.set(0, 0, 6);
+        isJumping = false;
+        isRolling = false;
+        jumpVelocity = 0;
+        
+        // Reset animation to Run
+        if (runAction && jumpAction && rollAction) {
+            runAction.reset().play();
+            jumpAction.stop();
+            rollAction.stop();
+        }
+    }
+}
+
+function triggerGameOver() {
+    gameStarted = false;
+    gameOverPage.classList.remove("hidden");
+}
+
+function checkCollisions() {
+    if (!player || !gameStarted) return;
+
+    const playerBox = new THREE.Box3().setFromObject(player);
+    // Kecilin hitbox player biar ga gampang mati
+    playerBox.expandByScalar(-0.5); 
+    
+    // LOGIKA ROLL: Kalo lagi roll, gepengin hitboxnya
+    if (isRolling) {
+        playerBox.max.y -= 1.0; // Turunin atap hitbox biar bisa lewat kolong
+    } 
+
+    for (let zombie of zombies) {
+        // Safe Dodge: Kalau lagi roll dan ketemu kelelawar, skip collision (alias lolos)
+        if (isRolling && zombie.userData.type === 'zombie4') {
+            continue;
+        }
+
+        const zombieBox = new THREE.Box3().setFromObject(zombie);
+        
+        // Adjust hitbox based on enemy type
+        if (zombie.userData.type === 'zombie4') {
+            // Bats are smaller/flying, so maybe don't shrink their box, or shrink less
+            // User complained it didn't hit, so let's EXPAND it slightly to be safe.
+            zombieBox.expandByScalar(0.3); 
+        } else {
+            // Standard Zombies
+            zombieBox.expandByScalar(-0.3);
+        }
+
+        if (playerBox.intersectsBox(zombieBox)) {
+            triggerGameOver();
+            break;
+        }
+    }
+}
+
+
 const fogColor = 0x4b3b6b;
 scene.background = new THREE.Color(fogColor);
 scene.fog = new THREE.FogExp2(fogColor, 0.015);
@@ -172,6 +275,8 @@ function loadPlayer() {
         player.scale.set(1.5, 1.5, 1.5); // skala
         player.position.set(0, 0, 6);    // posisi di depan kamera dikit
         player.rotation.y = Math.PI;     // menghadap depan
+        player.visible = false; // Hide completely until game starts
+
 
         // Bayangan
         player.traverse((c) => {
@@ -246,11 +351,14 @@ function spawnOneZombie(modelKey, x, z) {
 
   // Custom Logic untuk Bat (zombie4)
   if (modelKey === 'zombie4') {
-    zombie.position.set(x, 1.6, z); // Terbang agak tinggi
+    zombie.position.set(x, 1.7, z); // Terbang agak tinggi
     zombie.rotation.y = -Math.PI / 2;    // Putar balik biar menghadap player (sesuaikan jika perlu)
   } else {
     zombie.position.set(x, 0, z);
   }
+
+  // Simpan tipe zombie untuk login lain (misal collision)
+  zombie.userData.type = modelKey;
 
   // Scale sesuai konfigurasi per zombie
   const config = ZOMBIE_CONFIG[modelKey];
@@ -438,7 +546,7 @@ async function createEnv() {
     createsegment(-i * segment_length);
   }
 
-  spawnInitialZombies();
+  // spawnInitialZombies(); // DIPINDAH ke tombol Play
 
   draw();
 }
@@ -459,7 +567,7 @@ let currentLane = 1; // 0: Kiri, 1: Tengah, 2: Kanan
 const laneX = [-2.5, 0, 2.5]; // Posisi X untuk tiap jalur
 
 window.addEventListener("keydown", (e) => {
-  if (!player) return;
+  if (!player || !gameStarted) return; // Disable controls if game hasn't started
 
   if (e.key === "a" || e.key === "ArrowLeft") {
     if (currentLane > 0) currentLane--;
@@ -497,7 +605,7 @@ function draw() {
   }
 
   // Geser player ke jalur yg dipilih (pake lerp biar halus)
-  if (player) {
+  if (player && gameStarted) {
     // Geser X (Lane)
     const targetX = laneX[currentLane];
     player.position.x = THREE.MathUtils.lerp(player.position.x, targetX, 10 * delta);
@@ -575,7 +683,12 @@ function draw() {
   });
 
   renderer.render(scene, cam);
+  
+  if (gameStarted) {
+      checkCollisions();
+  }
 }
+
 
 window.addEventListener("resize", () => {
   cam.aspect = window.innerWidth / window.innerHeight;
