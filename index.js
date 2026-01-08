@@ -16,94 +16,222 @@ const retryBtn = document.getElementById("retry-btn");
 const homeBtn = document.getElementById("home-btn");
 
 playBtn.addEventListener("click", () => {
-    landingPage.classList.add("hidden");
-    gameStarted = true;
-    if (player) {
-        player.visible = true;
-    }
-    spawnInitialZombies(); // Spawn zombie saat tombol play ditekan
+  landingPage.classList.add("hidden");
+  gameStarted = true;
+  if (player) {
+    player.visible = true;
+  }
+  spawnInitialZombies(); // Spawn zombie saat tombol play ditekan
 });
 
 // Retry Button
 retryBtn.addEventListener("click", () => {
-    gameOverPage.classList.add("hidden");
-    resetGame();
-    gameStarted = true;
-    if (player) player.visible = true;
-    spawnInitialZombies();
+  gameOverPage.classList.add("hidden");
+  resetGame();
+  gameStarted = true;
+  if (player) player.visible = true;
+  spawnInitialZombies();
 });
 
 // Home Button
 homeBtn.addEventListener("click", () => {
-    gameOverPage.classList.add("hidden");
-    landingPage.classList.remove("hidden");
-    resetGame();
-    gameStarted = false; // Back to menu state
-    if (player) player.visible = false;
+  gameOverPage.classList.add("hidden");
+  landingPage.classList.remove("hidden");
+  resetGame();
+  gameStarted = false; // Back to menu state
+  if (player) player.visible = false;
 });
 
 function resetGame() {
-    // Clear zombies
-    zombies.forEach(z => scene.remove(z));
-    zombies = [];
-    
-    // Reset player position
-    currentLane = 1;
-    if (player) {
-        player.position.set(0, 0, 6);
-        isJumping = false;
-        isRolling = false;
-        jumpVelocity = 0;
-        
-        // Reset animation to Run
-        if (runAction && jumpAction && rollAction) {
-            runAction.reset().play();
-            jumpAction.stop();
-            rollAction.stop();
-        }
+  // Clear zombies
+  zombies.forEach(z => scene.remove(z));
+  zombies = [];
+  killerZombie = null; // Reset pembunuh
+
+  // Reset player position
+  currentLane = 1;
+  if (player) {
+    player.position.set(0, 0, 6);
+    isJumping = false;
+    isRolling = false;
+    isDying = false;
+    jumpVelocity = 0;
+
+    // Balikin animasi ke Run
+    if (runAction) {
+      // Stop semua animasi dulu
+      if (jumpAction) jumpAction.stop();
+      if (rollAction) rollAction.stop();
+      if (deathAction) deathAction.stop();
+      if (hitAction) hitAction.stop();
+
+      // Nyalain lagi animasi run
+      runAction.enabled = true;
+      runAction.reset();
+      runAction.play();
     }
+  }
 }
 
-function triggerGameOver() {
-    gameStarted = false;
-    gameOverPage.classList.remove("hidden");
+function triggerGameOver(zombie) {
+  if (isDying) return; // Cegah trigger double
+  gameStarted = false;
+  isDying = true;
+  killerZombie = zombie; // Simpan siapa yang nabrak
+
+  // Kalo ada zombie yang nabrak, suruh dia animasi nyerang/makan
+  if (killerZombie && killerZombie.userData.mixer) {
+    const resource = assetResources[killerZombie.userData.type];
+    if (resource && resource.animations) {
+      // Cari animasi Attack atau Bite
+      const attackClip = resource.animations.find(a => a.name.toLowerCase().includes("attack")) ||
+        resource.animations.find(a => a.name.toLowerCase().includes("bite")) ||
+        resource.animations.find(a => a.name.toLowerCase().includes("eat"));
+
+      if (attackClip) {
+        // Stop animasi lari/jalan
+        killerZombie.userData.mixer.stopAllAction();
+
+        // Mainin animasi death/makan
+        const action = killerZombie.userData.mixer.clipAction(attackClip);
+        action.reset();
+        action.play();
+      }
+    }
+  }
+
+  // Dapatkan config zombie yang nabrak
+  let animToPlay = deathAction; // Default death
+  let forceGround = true; // Default jatoh ke tanah
+
+  if (killerZombie) {
+    const type = killerZombie.userData.type;
+    const config = ZOMBIE_CONFIG[type];
+
+    if (config) {
+      // 1. Tentukan animasi player (Death / Hit)
+      if (config.playerAnim === "Hit" && hitAction) {
+        animToPlay = hitAction;
+      }
+
+      // 2. Tentukan posisi player (Ground / Air)
+      if (config.playerPos === "air") {
+        forceGround = false;
+      }
+    }
+  }
+
+  // Turunin player ke tanah kalo config minta di tanah
+  if (player && forceGround) {
+    player.position.y = 0;
+  }
+
+  isJumping = false;
+  jumpVelocity = 0;
+
+  // Matiin semua animasi biar ga tabrakan
+  if (runAction) runAction.stop();
+  if (jumpAction) jumpAction.stop();
+  if (rollAction) rollAction.stop();
+  if (deathAction) deathAction.stop();
+  if (hitAction) hitAction.stop();
+
+  // Mainin animasi: Hit dulu -> Baru nanti Death (via listener)
+  if (hitAction) {
+    hitAction.reset();
+    hitAction.play();
+  } else if (deathAction) {
+    // Fallback langsung death kalo ga ada hit
+    deathAction.reset();
+    deathAction.play();
+  } else {
+    showGameOverScreen();
+  }
+
+  // Kalo ada zombie yang nabrak, suruh dia animasi nyerang/makan
+  if (killerZombie && killerZombie.userData.mixer) {
+    const resource = assetResources[killerZombie.userData.type];
+    const config = ZOMBIE_CONFIG[killerZombie.userData.type];
+
+    if (resource && resource.animations) {
+      // Cari animasi Attack atau Bite sesuai CONFIG
+      let attackName = config?.attackAnim || "Attack";
+      let attackClip = resource.animations.find(a => a.name.toLowerCase().includes(attackName.toLowerCase()));
+
+      // Fallback kalo ga nemu di config
+      if (!attackClip) {
+        attackClip = resource.animations.find(a => a.name.toLowerCase().includes("attack")) ||
+          resource.animations.find(a => a.name.toLowerCase().includes("bite"));
+      }
+
+      if (attackClip) {
+        // Stop animasi lari/jalan
+        killerZombie.userData.mixer.stopAllAction();
+
+        // Mainin animasi attack zombie
+        const action = killerZombie.userData.mixer.clipAction(attackClip);
+
+        // Atur loop sesuai config
+        if (config && config.attackLoop === "once") {
+          action.loop = THREE.LoopOnce;
+          action.clampWhenFinished = true;
+        } else {
+          action.loop = THREE.LoopRepeat;
+        }
+
+        action.reset();
+        action.play();
+      }
+    }
+  }
+}
+
+// Fungsi buat nampilin layar game over (dipanggil setelah animasi death selesai)
+function showGameOverScreen() {
+  gameOverPage.classList.remove("hidden");
+
+  // Ilangin player abis animasi death
+  if (player) {
+    player.visible = false;
+  }
+
+  // Matiin animasi death juga
+  if (deathAction) deathAction.stop();
 }
 
 function checkCollisions() {
-    if (!player || !gameStarted) return;
+  if (!player || !gameStarted) return;
 
-    const playerBox = new THREE.Box3().setFromObject(player);
-    // Kecilin hitbox player biar ga gampang mati
-    playerBox.expandByScalar(-0.5); 
-    
-    // LOGIKA ROLL: Kalo lagi roll, gepengin hitboxnya
-    if (isRolling) {
-        playerBox.max.y -= 1.0; // Turunin atap hitbox biar bisa lewat kolong
-    } 
+  const playerBox = new THREE.Box3().setFromObject(player);
+  // Kecilin hitbox player biar ga gampang mati
+  playerBox.expandByScalar(-0.5);
 
-    for (let zombie of zombies) {
-        // Safe Dodge: Kalau lagi roll dan ketemu kelelawar, skip collision (alias lolos)
-        if (isRolling && zombie.userData.type === 'zombie4') {
-            continue;
-        }
+  // LOGIKA ROLL: Kalo lagi roll, gepengin hitboxnya
+  if (isRolling) {
+    playerBox.max.y -= 1.0; // Turunin atap hitbox biar bisa lewat kolong
+  }
 
-        const zombieBox = new THREE.Box3().setFromObject(zombie);
-        
-        // Adjust hitbox based on enemy type
-        if (zombie.userData.type === 'zombie4') {
-            // Bats are smaller/flying, so maybe don't shrink their box, or shrink less
-            // User complained it didn't hit, so let's EXPAND it slightly to be safe.
-            zombieBox.expandByScalar(0.3); 
-        } else {
-            // Standard Zombies
-            zombieBox.expandByScalar(-0.3);
-        }
-
-        if (playerBox.intersectsBox(zombieBox)) {
-            triggerGameOver();
-            break;
-        }
+  for (let zombie of zombies) {
+    // Safe Dodge: Kalau lagi roll dan ketemu kelelawar, skip collision (alias lolos)
+    if (isRolling && zombie.userData.type === 'zombie4') {
+      continue;
     }
+
+    const zombieBox = new THREE.Box3().setFromObject(zombie);
+
+    // Atur hitbox sesuai tipe musuh
+    if (zombie.userData.type === 'zombie4') {
+      // Kelelawar kecil/terbang, gedein dikit hitboxnya
+      zombieBox.expandByScalar(0.3);
+    }
+    // Zombie biasa - biarin hitbox aslinya biar zombie merangkak kedetect
+    // Standard zombies - no shrinking, keep original hitbox for better detection
+
+    if (playerBox.intersectsBox(zombieBox)) {
+      triggerGameOver(zombie);
+      break;
+    }
+  }
 }
 
 
@@ -199,10 +327,41 @@ function tintMaterial(material, color, rough = 0.7, metal = 0.05) {
 
 // Konfigurasi Zombie: Atur path model dan skala (scale) di sini
 const ZOMBIE_CONFIG = {
-  zombie1: { path: "./model/zombie.glb", scale: 0.9 },  // Zombie.glb biasanya besar
-  zombie2: { path: "./model/zombie1.glb", scale: 0.5 }, // Zombie1.glb
-  zombie3: { path: "./model/zombie2.glb", scale: 1.4 }, // Zombie2.glb
-  zombie4: { path: "./model/bat.glb", scale: 1.4 }, // Zombie2.glb
+  zombie1: { // jalan
+    path: "./model/zombie2.glb", // Ganti jadi model zombie besar
+    scale: 1.4,
+    attackAnim: "Attack",
+    playerAnim: "Hit",    // Kena damage dulu
+    playerPos: "ground",
+    attackLoop: "once",    // Serang kepukul sekali
+    moveAnim: "Walk"      // Jalan pelan
+  },
+  zombie2: { // merangkak / kecil
+    path: "./model/zombie1.glb",
+    scale: 0.5,
+    attackAnim: "Attack",
+    playerAnim: "Hit",
+    playerPos: "ground",
+    attackLoop: "repeat"  // Gigit-gigit terus
+  },
+  zombie3: { // lari / besar
+    path: "./model/zombie2.glb",
+    scale: 1.4,
+    attackAnim: "Bite",
+    playerAnim: "Hit",
+    playerPos: "ground",
+    attackLoop: "once",    // Gigit sekali kuat
+    moveAnim: "Run"       // Lari kenceng
+  },
+  zombie4: { // terbang
+    path: "./model/bat.glb",
+    scale: 1.4,
+    attackAnim: "Bite",
+    playerAnim: "Death",    // Langsung Death biar halus (ga dua gerakan)
+    playerPos: "ground",  // Jatuh ke tanah
+    attackLoop: "once",  // Nyerang terus sambil terbang
+    skipDeathAnim: false   // Tetap jalankan death abis hit
+  },
 };
 
 async function loadAssets() {
@@ -315,8 +474,28 @@ function loadPlayer() {
             rollAction.clampWhenFinished = true;
           }
 
-          // Listener ketika animasi selesai (untuk Roll)
+          // Cari animasi mati (Death)
+          const clipDeath = animations.find(a => a.name.toLowerCase().includes('death'));
+          if (clipDeath) {
+            deathAction = playerMixer.clipAction(clipDeath);
+            deathAction.loop = THREE.LoopOnce;
+            deathAction.clampWhenFinished = true;
+          }
+
+          // Cari animasi ketabrak (HitReceive_2)
+          // Prioritas: HitReceive_2 -> Hit -> Sembarang Hit
+          const clipHit = animations.find(a => a.name.includes('Sword_Slash')) ||
+            animations.find(a => a.name.toLowerCase().includes('hit'));
+
+          if (clipHit) {
+            hitAction = playerMixer.clipAction(clipHit);
+            hitAction.loop = THREE.LoopOnce;
+            hitAction.clampWhenFinished = true;
+          }
+
+          // Listener ketika animasi selesai
           playerMixer.addEventListener('finished', (e) => {
+            // Kalo roll selesai, balik ke run
             if (e.action === rollAction) {
               isRolling = false;
               if (runAction) {
@@ -324,6 +503,26 @@ function loadPlayer() {
                 runAction.reset();
                 runAction.play();
               }
+            }
+
+            // Kalo HitReceive selesai, cek apakah lanjut Death atau udahan
+            if (e.action === hitAction) {
+              const type = killerZombie ? killerZombie.userData.type : null;
+              const skipDeath = type ? ZOMBIE_CONFIG[type].skipDeathAnim : false;
+
+              if (!skipDeath && deathAction) {
+                // Gunakan crossFade biar transisinya halus (nggak patah jadi 2 gerakan)
+                hitAction.crossFadeTo(deathAction, 0.1, false);
+                deathAction.reset();
+                deathAction.play();
+              } else {
+                showGameOverScreen(); // Fallback atau emang disuruh skip death
+              }
+            }
+
+            // Kalo Death selesai, baru tampilin layar game over
+            if (e.action === deathAction) {
+              showGameOverScreen();
             }
           });
         }
@@ -369,7 +568,15 @@ function spawnOneZombie(modelKey, x, z) {
     const mixer = new THREE.AnimationMixer(zombie);
 
     // Cari animasi lari (Run), Jalan (Walk), atau Terbang (Fly)
-    let clip = resource.animations.find(a => a.name.toLowerCase().includes("run"));
+    let clip = null;
+
+    // 1. Cek preference dari config (Walk/Run)
+    if (config && config.moveAnim) {
+      clip = resource.animations.find(a => a.name.toLowerCase().includes(config.moveAnim.toLowerCase()));
+    }
+
+    // 2. Fallback
+    if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("run"));
     if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("walk"));
     if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("fly")); // Buat kelelawar
     if (!clip) clip = resource.animations[8] || resource.animations[0];
@@ -551,11 +758,14 @@ async function createEnv() {
   draw();
 }
 
+
 let player;
 let playerMixer;
-let runAction, jumpAction, rollAction; // Action untuk animasi
+let runAction, jumpAction, rollAction, deathAction, hitAction; // Action untuk animasi
 let isJumping = false;
 let isRolling = false;
+let isDying = false; // Flag buat cek lagi mati apa engga
+let killerZombie = null; // Zombie yang bunuh player
 let jumpVelocity = 0;
 const GRAVITY = 35; // Gravitasi lebih kuat biar "berat"
 const JUMP_FORCE = 12; // Kekuatan lompat
@@ -633,59 +843,73 @@ function draw() {
 
   controls.update();
 
+  // Update zombies
   zombies.forEach((zombie) => {
-    // Cek apakah mixer tersedia di userData
-    if (zombie.userData.mixer) {
-      zombie.userData.mixer.update(delta);
+    const isKiller = (zombie === killerZombie);
+
+    // 1. Update Animasi
+    // Kalo game jalan ATAU ini zombie yang lagi makan player, update animasinya
+    if (gameStarted || isKiller) {
+      if (zombie.userData.mixer) {
+        zombie.userData.mixer.update(delta);
+      }
     }
 
-    // Logika pergerakan zombie
-    zombie.position.z += (game_speed + 2) * delta;
+    // 2. Update Posisi/Movement
+    // Cuma gerak kalo game jalan (jadi zombie lain freeze)
+    if (gameStarted) {
+      // Logika pergerakan zombie
+      zombie.position.z += (game_speed + 2) * delta;
 
-    if (zombie.position.z > 10) {
-      // Recycle ke belakang
-      const minZ = Math.min(...zombies.map(z => z.position.z));
+      if (zombie.position.z > 10) {
+        // Recycle ke belakang
+        const minZ = Math.min(...zombies.map(z => z.position.z));
 
-      // Chance untuk grouping/sejajar
-      const gap = Math.random() < 0.25 ? 0 : (25 + Math.random() * 20);
-      zombie.position.z = minZ - gap;
+        // Chance untuk grouping/sejajar
+        const gap = Math.random() < 0.25 ? 0 : (25 + Math.random() * 20);
+        zombie.position.z = minZ - gap;
 
-      if (gap === 0) {
-        // Cari lane yang kosong di minZ
-        const buddy = zombies.find(z => Math.abs(z.position.z - minZ) < 5);
-        const busyLaneX = buddy ? buddy.position.x : -999;
-        const availableLanes = laneX.filter(x => x !== busyLaneX);
-        zombie.position.x = availableLanes.length > 0 ? availableLanes[Math.floor(Math.random() * availableLanes.length)] : laneX[Math.floor(Math.random() * 3)];
-      } else {
-        zombie.position.x = laneX[Math.floor(Math.random() * 3)];
+        if (gap === 0) {
+          // Cari lane yang kosong di minZ
+          const buddy = zombies.find(z => Math.abs(z.position.z - minZ) < 5);
+          const busyLaneX = buddy ? buddy.position.x : -999;
+          const availableLanes = laneX.filter(x => x !== busyLaneX);
+          zombie.position.x = availableLanes.length > 0 ? availableLanes[Math.floor(Math.random() * availableLanes.length)] : laneX[Math.floor(Math.random() * 3)];
+        } else {
+          zombie.position.x = laneX[Math.floor(Math.random() * 3)];
+        }
       }
     }
   });
 
 
   // Jalanin semua objek ke arah kamera
-  segments.forEach((segment) => {
-    segment.position.z += game_speed * delta;
-  });
+  // Update jalan/segmen cuma kalo game jalan
+  if (gameStarted) {
+    // Jalanin semua objek ke arah kamera
+    segments.forEach((segment) => {
+      segment.position.z += game_speed * delta;
+    });
 
-  // Cek kalo jalan udah lewat kamera (di belakang kita)
-  // terus lempar lagi ke ujung belakang
-  segments.forEach((segment) => {
-    if (segment.position.z > segment_length) { // Jika sudah lewat kamera (batas aman)
+    // Cek kalo jalan udah lewat kamera (di belakang kita)
+    // terus lempar lagi ke ujung belakang
+    segments.forEach((segment) => {
+      if (segment.position.z > segment_length) { // Jika sudah lewat kamera (batas aman)
 
-      // Cari posisi paling ujung belakang
-      const minZ = Math.min(...segments.map(s => s.position.z));
+        // Cari posisi paling ujung belakang
+        const minZ = Math.min(...segments.map(s => s.position.z));
 
-      // Tempel di belakangnya
-      // Pas-in biar ga ada celah (no gap)
-      segment.position.z = minZ - segment_length;
-    }
-  });
+        // Tempel di belakangnya
+        // Pas-in biar ga ada celah (no gap)
+        segment.position.z = minZ - segment_length;
+      }
+    });
+  }
 
   renderer.render(scene, cam);
-  
+
   if (gameStarted) {
-      checkCollisions();
+    checkCollisions();
   }
 }
 
