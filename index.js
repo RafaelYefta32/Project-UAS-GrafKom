@@ -48,6 +48,10 @@ function resetGame() {
   zombies = [];
   killerZombie = null; // Reset pembunuh
 
+  game_speed = start_speed; // Reset kecepatan
+  maxActiveZombies = 12; // Reset jumlah zombie
+  spawnTimer = 0;
+
   // Reset player position
   currentLane = 1;
   if (player) {
@@ -206,13 +210,13 @@ function checkCollisions() {
   // Kecilin hitbox player biar ga gampang mati
   playerBox.expandByScalar(-0.5);
 
-  // LOGIKA ROLL: Kalo lagi roll, gepengin hitboxnya
+  // Kalo lagi roll, gepengin hitboxnya
   if (isRolling) {
     playerBox.max.y -= 1.0; // Turunin atap hitbox biar bisa lewat kolong
   }
 
   for (let zombie of zombies) {
-    // Safe Dodge: Kalau lagi roll dan ketemu kelelawar, skip collision (alias lolos)
+    // Kalau lagi roll dan ketemu kelelawar, skip collision (alias lolos)
     if (isRolling && zombie.userData.type === 'zombie4') {
       continue;
     }
@@ -224,8 +228,7 @@ function checkCollisions() {
       // Kelelawar kecil/terbang, gedein dikit hitboxnya
       zombieBox.expandByScalar(0.3);
     }
-    // Zombie biasa - biarin hitbox aslinya biar zombie merangkak kedetect
-    // Standard zombies - no shrinking, keep original hitbox for better detection
+    // Zombie biasa biarin hitbox aslinya biar zombie merangkak kedetect
 
     if (playerBox.intersectsBox(zombieBox)) {
       triggerGameOver(zombie);
@@ -271,7 +274,7 @@ const groundMaterial = new THREE.MeshStandardMaterial({
   color: 0x666666,
 });
 
-// kasih lampu biar terang (agak serem dikit)
+// kasih lampu biar terang
 const moonLight = new THREE.DirectionalLight(0xffffff, 2.5);
 const playerLight = new THREE.DirectionalLight(0xffffff, 1);
 playerLight.position.set(0, 10, 0);
@@ -325,7 +328,7 @@ function tintMaterial(material, color, rough = 0.7, metal = 0.05) {
   });
 }
 
-// Konfigurasi Zombie: Atur path model dan skala (scale) di sini
+// Atur path model dan skala (scale) di sini
 const ZOMBIE_CONFIG = {
   zombie1: { // jalan
     path: "./model/zombie2.glb", // Ganti jadi model zombie besar
@@ -334,7 +337,7 @@ const ZOMBIE_CONFIG = {
     playerAnim: "Hit",    // Kena damage dulu
     playerPos: "ground",
     attackLoop: "once",    // Serang kepukul sekali
-    moveAnim: "Walk"      // Jalan pelan
+    moveAnim: "walk"      // Jalan pelan
   },
   zombie2: { // merangkak / kecil
     path: "./model/zombie1.glb",
@@ -472,6 +475,7 @@ function loadPlayer() {
             rollAction = playerMixer.clipAction(clipRoll);
             rollAction.loop = THREE.LoopOnce; // Jangan looping
             rollAction.clampWhenFinished = true;
+            rollAction.timeScale = 2.0;
           }
 
           // Cari animasi mati (Death)
@@ -483,7 +487,6 @@ function loadPlayer() {
           }
 
           // Cari animasi ketabrak (HitReceive_2)
-          // Prioritas: HitReceive_2 -> Hit -> Sembarang Hit
           const clipHit = animations.find(a => a.name.includes('Sword_Slash')) ||
             animations.find(a => a.name.toLowerCase().includes('hit'));
 
@@ -511,7 +514,7 @@ function loadPlayer() {
               const skipDeath = type ? ZOMBIE_CONFIG[type].skipDeathAnim : false;
 
               if (!skipDeath && deathAction) {
-                // Gunakan crossFade biar transisinya halus (nggak patah jadi 2 gerakan)
+                // Gunakan crossFade biar transisinya halus 
                 hitAction.crossFadeTo(deathAction, 0.1, false);
                 deathAction.reset();
                 deathAction.play();
@@ -551,12 +554,12 @@ function spawnOneZombie(modelKey, x, z) {
   // Custom Logic untuk Bat (zombie4)
   if (modelKey === 'zombie4') {
     zombie.position.set(x, 1.7, z); // Terbang agak tinggi
-    zombie.rotation.y = -Math.PI / 2;    // Putar balik biar menghadap player (sesuaikan jika perlu)
+    zombie.rotation.y = -Math.PI / 2;    // Putar balik biar menghadap player
   } else {
     zombie.position.set(x, 0, z);
   }
 
-  // Simpan tipe zombie untuk login lain (misal collision)
+  // Simpan tipe zombie untuk login lain
   zombie.userData.type = modelKey;
 
   // Scale sesuai konfigurasi per zombie
@@ -570,18 +573,18 @@ function spawnOneZombie(modelKey, x, z) {
     // Cari animasi lari (Run), Jalan (Walk), atau Terbang (Fly)
     let clip = null;
 
-    // 1. Cek preference dari config (Walk/Run)
+    // cek preference dari config (Walk/Run)
     if (config && config.moveAnim) {
       clip = resource.animations.find(a => a.name.toLowerCase().includes(config.moveAnim.toLowerCase()));
     }
 
-    // 2. Fallback
+    // Fallback
     if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("run"));
     if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("walk"));
     if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("fly")); // Buat kelelawar
     if (!clip) clip = resource.animations[8] || resource.animations[0];
 
-    // FIX GLITCH: Hapus track posisi root
+    // Hapus track posisi root
     const tracks = clip.tracks.filter(t => !t.name.endsWith(".position"));
     const fixedClip = new THREE.AnimationClip(clip.name, clip.duration, tracks);
 
@@ -629,7 +632,16 @@ function spawnInitialZombies() {
 const segments = [];
 const segment_length = 20;
 const segment_count = 8;
-const game_speed = 8;
+let game_speed = 8;
+const start_speed = 8;
+const max_speed = 30; // Kecepatan maksimal
+const acceleration = 0.5; // Penambahan kecepatan per detik
+
+// Variable untuk spawn zombie tambahan
+let spawnTimer = 0;
+let spawn_interval = 1.0;
+let maxActiveZombies = 50; // Awalnya 50 zombie
+const max_zombie_limit = 150; // Mentok di 150 zombie 
 
 function createsegment(z_offset) {
   const segmentGroup = new THREE.Group();
@@ -744,16 +756,14 @@ function createsegment(z_offset) {
 }
 
 async function createEnv() {
-  // 1. Tunggu player beres di-load
+  // Tunggu player beres di-load
   await loadPlayer();
 
-  // 2. Bikin jalanan awal berjejer ke belakang
-  // Mulai dari z=0 mundur ke belakang (negatif Z)
+  // Bikin jalanan awal berjejer ke belakang
+  // Mulai dari z=0 mundur ke belakang
   for (let i = 0; i < segment_count; i++) {
     createsegment(-i * segment_length);
   }
-
-  // spawnInitialZombies(); // DIPINDAH ke tombol Play
 
   draw();
 }
@@ -767,17 +777,17 @@ let isRolling = false;
 let isDying = false; // Flag buat cek lagi mati apa engga
 let killerZombie = null; // Zombie yang bunuh player
 let jumpVelocity = 0;
-const GRAVITY = 35; // Gravitasi lebih kuat biar "berat"
+const GRAVITY = 35; // Gravitasi lebih kuat biar berat
 const JUMP_FORCE = 12; // Kekuatan lompat
 
 const clock = new THREE.Clock();
 
-// Logika pindah jalur (kiri - tengah - kanan)
+// Logika pindah jalur
 let currentLane = 1; // 0: Kiri, 1: Tengah, 2: Kanan
 const laneX = [-2.5, 0, 2.5]; // Posisi X untuk tiap jalur
 
 window.addEventListener("keydown", (e) => {
-  if (!player || !gameStarted) return; // Disable controls if game hasn't started
+  if (!player || !gameStarted) return;
 
   if (e.key === "a" || e.key === "ArrowLeft") {
     if (currentLane > 0) currentLane--;
@@ -789,7 +799,7 @@ window.addEventListener("keydown", (e) => {
     isJumping = true;
     jumpVelocity = JUMP_FORCE;
 
-    // Transisi Animasi: Lari -> Lompat
+    // Lari ke lompat
     if (jumpAction && runAction) {
       runAction.crossFadeTo(jumpAction, 0.1, true);
       jumpAction.reset();
@@ -806,21 +816,109 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
+function updateDifficulty(delta) {
+  if (!gameStarted) return;
+
+  // Menaikkan kecepatan
+  if (game_speed < max_speed) {
+    // Speed nambah pelan-pelan setiap frame
+    game_speed += acceleration * delta * 0.1; 
+  }
+
+  // Menaikkan kapasitas zombie
+  // Semakin cepat game, semakin banyak zombie yang boleh muncul
+  if (maxActiveZombies < max_zombie_limit) {
+    maxActiveZombies += delta * 0.5;
+  }
+
+  // Mempercepat Spawn Interval
+  // Semakin lama main, semakin ngebut spawn-nya (min 0.3 detik)
+  if (spawn_interval > 0.3) {
+    spawn_interval -= delta * 0.005; 
+  }
+
+  // Spawn zombie baru
+  spawnTimer += delta;
+  
+  // Jika waktu spawn tercapai dan jumlah zombie masih di bawah batas kapasitas
+  if (spawnTimer > spawn_interval && zombies.length < Math.floor(maxActiveZombies)) {
+    spawnTimer = 0;
+
+    // Cari posisi paling belakang
+    let minZ = -60;
+    if (zombies.length > 0) {
+      minZ = Math.min(...zombies.map(z => z.position.z));
+    }
+
+    // Ada kemungkinan spawn 2-3 zombie sekaligus
+    const burstChance = Math.random();
+    let spawnCount = 1;
+
+    if (game_speed > 12 && burstChance < 0.30) spawnCount = 3;
+    else if (game_speed > 8 && burstChance < 0.50) spawnCount = 2;
+
+    // Pastikan tidak numpuk di satu lane
+    const availableLanes = [0, 1, 2].sort(() => 0.5 - Math.random());
+    
+    // Tentukan tipe zombie dulu
+    let selectedTypes = [];
+    if (spawnCount === 3) {
+        // Kalau 3 zombie, harus ada yang bisa dilewatin (zombie4 atau zombie2)
+        const passableTypes = ["zombie2", "zombie4"];
+        const allTypes = ["zombie1", "zombie2", "zombie3", "zombie4"];
+        
+        // Pastikan minimal satu yang aman
+        selectedTypes.push(passableTypes[Math.floor(Math.random() * passableTypes.length)]);
+        
+        // Sisanya random
+        for (let k = 1; k < spawnCount; k++) {
+             selectedTypes.push(allTypes[Math.floor(Math.random() * allTypes.length)]);
+        }
+    } else {
+         // Kalau cuma 1 atau 2, random aja bebas
+         const allTypes = ["zombie1", "zombie2", "zombie3", "zombie4"];
+         for (let k = 0; k < spawnCount; k++) {
+             selectedTypes.push(allTypes[Math.floor(Math.random() * allTypes.length)]);
+         }
+    }
+
+    for (let i = 0; i < spawnCount; i++) {
+        const laneIndex = availableLanes[i];
+        const type = selectedTypes[i];
+        
+        // Spawn agak jauh di belakang, kasih variasi jarak dikit biar gak terlalu baris
+        const offsetZ = Math.random() * 5; 
+        spawnOneZombie(type, laneX[laneIndex], minZ - 10 - offsetZ);
+    }
+  }
+}
+
 function draw() {
   requestAnimationFrame(draw);
   const delta = clock.getDelta();
 
+  updateDifficulty(delta*5);
+  // console.log(game_speed);
+
   if (playerMixer) {
+    // Sync animation speed with game speed
+    const speedRatio = Math.min(game_speed / start_speed, 1.5);
+    
+    // Only scale RUN animation
+    if (runAction) {
+        runAction.timeScale = speedRatio;
+    }
+
     playerMixer.update(delta);
   }
 
-  // Geser player ke jalur yg dipilih (pake lerp biar halus)
+  // Geser player ke jalur yg dipilih
   if (player && gameStarted) {
     // Geser X (Lane)
     const targetX = laneX[currentLane];
     player.position.x = THREE.MathUtils.lerp(player.position.x, targetX, 10 * delta);
 
-    // Geser Y (Lompat/Gravitasi)
+    // Geser Y (Lompat)
     if (isJumping) {
       player.position.y += jumpVelocity * delta;
       jumpVelocity -= GRAVITY * delta;
@@ -831,7 +929,7 @@ function draw() {
         isJumping = false;
         jumpVelocity = 0;
 
-        // Transisi Animasi: Lompat -> Lari
+        // Lompat ke lari
         if (jumpAction && runAction) {
           jumpAction.crossFadeTo(runAction, 0.2, true);
           runAction.reset();
@@ -847,15 +945,15 @@ function draw() {
   zombies.forEach((zombie) => {
     const isKiller = (zombie === killerZombie);
 
-    // 1. Update Animasi
-    // Kalo game jalan ATAU ini zombie yang lagi makan player, update animasinya
+    // Update Animasi
+    // update animasi alo game jalan ato ini zombie yang lagi makan player
     if (gameStarted || isKiller) {
       if (zombie.userData.mixer) {
         zombie.userData.mixer.update(delta);
       }
     }
 
-    // 2. Update Posisi/Movement
+    // Update Posisi/Movement
     // Cuma gerak kalo game jalan (jadi zombie lain freeze)
     if (gameStarted) {
       // Logika pergerakan zombie
@@ -866,12 +964,12 @@ function draw() {
         const minZ = Math.min(...zombies.map(z => z.position.z));
 
         // Chance untuk grouping/sejajar
-        const gap = Math.random() < 0.25 ? 0 : (25 + Math.random() * 20);
+        const gap = Math.random() < 0.3 ? 0 : (15 + Math.random() * 10);
         zombie.position.z = minZ - gap;
 
         if (gap === 0) {
           // Cari lane yang kosong di minZ
-          const buddy = zombies.find(z => Math.abs(z.position.z - minZ) < 5);
+          const buddy = zombies.find(z => Math.abs(z.position.z - minZ) < 3.5);
           const busyLaneX = buddy ? buddy.position.x : -999;
           const availableLanes = laneX.filter(x => x !== busyLaneX);
           zombie.position.x = availableLanes.length > 0 ? availableLanes[Math.floor(Math.random() * availableLanes.length)] : laneX[Math.floor(Math.random() * 3)];
@@ -894,13 +992,13 @@ function draw() {
     // Cek kalo jalan udah lewat kamera (di belakang kita)
     // terus lempar lagi ke ujung belakang
     segments.forEach((segment) => {
-      if (segment.position.z > segment_length) { // Jika sudah lewat kamera (batas aman)
+      if (segment.position.z > segment_length) { // Jika sudah lewat kamera 
 
         // Cari posisi paling ujung belakang
         const minZ = Math.min(...segments.map(s => s.position.z));
 
         // Tempel di belakangnya
-        // Pas-in biar ga ada celah (no gap)
+        // Pas in biar ga ada celah 
         segment.position.z = minZ - segment_length;
       }
     });
