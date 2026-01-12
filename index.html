@@ -7,7 +7,8 @@
     <title>ZomBrush</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Roboto:wght@400;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="index.js" type="module"></script>
 </head>
@@ -18,21 +19,48 @@
             <h1>ZombRush</h1>
             <div class="subtitle">Survive the Spooky Forest!</div>
         </div>
-        
+
         <div class="menu-container">
             <button id="play-btn">PLAY NOW</button>
-            <button class="secondary-btn" onclick="alert('Settings feature coming soon!')">SETTINGS</button>
+            <button id="settings-btn" class="secondary-btn">SETTINGS</button>
         </div>
-        
+
         <!-- <div class="footer">Project UAS Grafika Komputer</div> -->
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>SETTINGS</h2>
+
+            <div class="setting-item">
+                <label for="music-volume">🎵 Music Volume</label>
+                <div class="slider-container">
+                    <input type="range" id="music-volume" min="0" max="100" value="50">
+                    <span id="music-value">50%</span>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <label for="sfx-volume">🔊 Sound Effects</label>
+                <div class="slider-container">
+                    <input type="range" id="sfx-volume" min="0" max="100" value="70">
+                    <span id="sfx-value">70%</span>
+                </div>
+            </div>
+
+            <button id="close-settings-btn" class="secondary-btn">CLOSE</button>
+        </div>
     </div>
 
     <!-- Game Over Screen -->
     <div id="game-over-page" class="hidden">
         <div class="title-container">
-            <h1 style="color: #ff0000; -webkit-text-stroke: 4px white; text-shadow: 6px 6px 0px #3e0000, 12px 12px 0px rgba(0,0,0,0.2);">GAME OVER</h1>
+            <h1
+                style="color: #ff0000; -webkit-text-stroke: 4px white; text-shadow: 6px 6px 0px #3e0000, 12px 12px 0px rgba(0,0,0,0.2);">
+                GAME OVER</h1>
         </div>
-        
+
         <div class="menu-container">
             <button id="retry-btn">RETRY</button>
             <button id="home-btn" class="secondary-btn">HOME</button>

@@ -15,6 +15,74 @@ const gameOverPage = document.getElementById("game-over-page");
 const retryBtn = document.getElementById("retry-btn");
 const homeBtn = document.getElementById("home-btn");
 
+// Settings UI
+const settingsBtn = document.getElementById("settings-btn");
+const settingsModal = document.getElementById("settings-modal");
+const closeSettingsBtn = document.getElementById("close-settings-btn");
+const musicVolumeSlider = document.getElementById("music-volume");
+const sfxVolumeSlider = document.getElementById("sfx-volume");
+const musicValueDisplay = document.getElementById("music-value");
+const sfxValueDisplay = document.getElementById("sfx-value");
+
+// Load saved volume from localStorage (default: music 50%, sfx 70%)
+const savedMusicVolume = localStorage.getItem("zombrush_music_volume") ?? 50;
+const savedSfxVolume = localStorage.getItem("zombrush_sfx_volume") ?? 70;
+
+// Background Music Setup
+const bgMusic = new Audio("./audio/Spook.mp3");
+bgMusic.loop = true;
+bgMusic.volume = savedMusicVolume / 100;
+
+// Death Scream Sound Effect
+const screamSound = new Audio("./audio/male-scream.mp3");
+screamSound.volume = savedSfxVolume / 100;
+
+// Apply saved values to UI
+musicVolumeSlider.value = savedMusicVolume;
+sfxVolumeSlider.value = savedSfxVolume;
+musicValueDisplay.textContent = savedMusicVolume + "%";
+sfxValueDisplay.textContent = savedSfxVolume + "%";
+
+function playMusic() {
+  bgMusic.currentTime = 0; // Reset ke awal
+  bgMusic.play().catch(e => console.log("Audio play blocked:", e));
+}
+
+function stopMusic() {
+  bgMusic.pause();
+  bgMusic.currentTime = 0;
+}
+
+function playScream() {
+  screamSound.currentTime = 0;
+  screamSound.play().catch(e => console.log("Scream audio blocked:", e));
+}
+
+// Settings Modal Controls
+settingsBtn.addEventListener("click", () => {
+  settingsModal.classList.remove("hidden");
+});
+
+closeSettingsBtn.addEventListener("click", () => {
+  settingsModal.classList.add("hidden");
+});
+
+// Music Volume Control
+musicVolumeSlider.addEventListener("input", (e) => {
+  const value = e.target.value;
+  bgMusic.volume = value / 100;
+  musicValueDisplay.textContent = value + "%";
+  localStorage.setItem("zombrush_music_volume", value); // Save to localStorage
+});
+
+// SFX Volume Control
+sfxVolumeSlider.addEventListener("input", (e) => {
+  const value = e.target.value;
+  screamSound.volume = value / 100;
+  sfxValueDisplay.textContent = value + "%";
+  localStorage.setItem("zombrush_sfx_volume", value); // Save to localStorage
+});
+
 playBtn.addEventListener("click", () => {
   landingPage.classList.add("hidden");
   gameStarted = true;
@@ -22,6 +90,7 @@ playBtn.addEventListener("click", () => {
     player.visible = true;
   }
   spawnInitialZombies(); // Spawn zombie saat tombol play ditekan
+  playMusic(); // Mulai musik saat game dimulai
 });
 
 // Retry Button
@@ -31,6 +100,7 @@ retryBtn.addEventListener("click", () => {
   gameStarted = true;
   if (player) player.visible = true;
   spawnInitialZombies();
+  playMusic(); // Mulai musik lagi saat retry
 });
 
 // Home Button
@@ -40,6 +110,7 @@ homeBtn.addEventListener("click", () => {
   resetGame();
   gameStarted = false; // Back to menu state
   if (player) player.visible = false;
+  stopMusic(); // Stop musik saat kembali ke menu
 });
 
 function resetGame() {
@@ -82,6 +153,8 @@ function triggerGameOver(zombie) {
   gameStarted = false;
   isDying = true;
   killerZombie = zombie; // Simpan siapa yang nabrak
+  stopMusic(); // Stop musik saat game over
+  playScream(); // Mainkan suara teriakan
 
   // Kalo ada zombie yang nabrak, suruh dia animasi nyerang/makan
   if (killerZombie && killerZombie.userData.mixer) {
@@ -822,7 +895,7 @@ function updateDifficulty(delta) {
   // Menaikkan kecepatan
   if (game_speed < max_speed) {
     // Speed nambah pelan-pelan setiap frame
-    game_speed += acceleration * delta * 0.1; 
+    game_speed += acceleration * delta * 0.1;
   }
 
   // Menaikkan kapasitas zombie
@@ -834,12 +907,12 @@ function updateDifficulty(delta) {
   // Mempercepat Spawn Interval
   // Semakin lama main, semakin ngebut spawn-nya (min 0.3 detik)
   if (spawn_interval > 0.3) {
-    spawn_interval -= delta * 0.005; 
+    spawn_interval -= delta * 0.005;
   }
 
   // Spawn zombie baru
   spawnTimer += delta;
-  
+
   // Jika waktu spawn tercapai dan jumlah zombie masih di bawah batas kapasitas
   if (spawnTimer > spawn_interval && zombies.length < Math.floor(maxActiveZombies)) {
     spawnTimer = 0;
@@ -859,36 +932,36 @@ function updateDifficulty(delta) {
 
     // Pastikan tidak numpuk di satu lane
     const availableLanes = [0, 1, 2].sort(() => 0.5 - Math.random());
-    
+
     // Tentukan tipe zombie dulu
     let selectedTypes = [];
     if (spawnCount === 3) {
-        // Kalau 3 zombie, harus ada yang bisa dilewatin (zombie4 atau zombie2)
-        const passableTypes = ["zombie2", "zombie4"];
-        const allTypes = ["zombie1", "zombie2", "zombie3", "zombie4"];
-        
-        // Pastikan minimal satu yang aman
-        selectedTypes.push(passableTypes[Math.floor(Math.random() * passableTypes.length)]);
-        
-        // Sisanya random
-        for (let k = 1; k < spawnCount; k++) {
-             selectedTypes.push(allTypes[Math.floor(Math.random() * allTypes.length)]);
-        }
+      // Kalau 3 zombie, harus ada yang bisa dilewatin (zombie4 atau zombie2)
+      const passableTypes = ["zombie2", "zombie4"];
+      const allTypes = ["zombie1", "zombie2", "zombie3", "zombie4"];
+
+      // Pastikan minimal satu yang aman
+      selectedTypes.push(passableTypes[Math.floor(Math.random() * passableTypes.length)]);
+
+      // Sisanya random
+      for (let k = 1; k < spawnCount; k++) {
+        selectedTypes.push(allTypes[Math.floor(Math.random() * allTypes.length)]);
+      }
     } else {
-         // Kalau cuma 1 atau 2, random aja bebas
-         const allTypes = ["zombie1", "zombie2", "zombie3", "zombie4"];
-         for (let k = 0; k < spawnCount; k++) {
-             selectedTypes.push(allTypes[Math.floor(Math.random() * allTypes.length)]);
-         }
+      // Kalau cuma 1 atau 2, random aja bebas
+      const allTypes = ["zombie1", "zombie2", "zombie3", "zombie4"];
+      for (let k = 0; k < spawnCount; k++) {
+        selectedTypes.push(allTypes[Math.floor(Math.random() * allTypes.length)]);
+      }
     }
 
     for (let i = 0; i < spawnCount; i++) {
-        const laneIndex = availableLanes[i];
-        const type = selectedTypes[i];
-        
-        // Spawn agak jauh di belakang, kasih variasi jarak dikit biar gak terlalu baris
-        const offsetZ = Math.random() * 5; 
-        spawnOneZombie(type, laneX[laneIndex], minZ - 10 - offsetZ);
+      const laneIndex = availableLanes[i];
+      const type = selectedTypes[i];
+
+      // Spawn agak jauh di belakang, kasih variasi jarak dikit biar gak terlalu baris
+      const offsetZ = Math.random() * 5;
+      spawnOneZombie(type, laneX[laneIndex], minZ - 10 - offsetZ);
     }
   }
 }
@@ -897,16 +970,16 @@ function draw() {
   requestAnimationFrame(draw);
   const delta = clock.getDelta();
 
-  updateDifficulty(delta*5);
+  updateDifficulty(delta * 5);
   // console.log(game_speed);
 
   if (playerMixer) {
     // Sync animation speed with game speed
     const speedRatio = Math.min(game_speed / start_speed, 1.5);
-    
+
     // Only scale RUN animation
     if (runAction) {
-        runAction.timeScale = speedRatio;
+      runAction.timeScale = speedRatio;
     }
 
     playerMixer.update(delta);

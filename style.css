@@ -10,7 +10,8 @@ body {
     font-family: 'Roboto', sans-serif;
 }
 
-#landing-page, #game-over-page {
+#landing-page,
+#game-over-page {
     position: absolute;
     top: 0;
     left: 0;
@@ -20,13 +21,15 @@ body {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    background: linear-gradient(to bottom, rgba(40, 20, 60, 0.6), rgba(20, 10, 40, 0.9)); /* Purplish tint from image */
+    background: linear-gradient(to bottom, rgba(40, 20, 60, 0.6), rgba(20, 10, 40, 0.9));
+    /* Purplish tint from image */
     backdrop-filter: blur(4px);
     z-index: 10;
     transition: opacity 0.8s ease-out;
 }
 
-#landing-page.hidden, #game-over-page.hidden {
+#landing-page.hidden,
+#game-over-page.hidden {
     opacity: 0;
     pointer-events: none;
     z-index: -1;
@@ -42,16 +45,18 @@ body {
 h1 {
     font-family: 'Creepster', cursive;
     font-size: 10rem;
-    color: #b2ff59; /* Bright Lime Green */
+    color: #b2ff59;
+    /* Bright Lime Green */
     text-transform: uppercase;
     letter-spacing: 2px;
     /* Thick White Outline effect */
-    -webkit-text-stroke: 4px white; 
+    -webkit-text-stroke: 4px white;
     paint-order: stroke fill;
     /* Blocky 3D Shadow effect */
-    text-shadow: 
-        6px 6px 0px #2e003e, /* Dark Purple Depth */
-        12px 12px 0px rgba(0,0,0,0.2);
+    text-shadow:
+        6px 6px 0px #2e003e,
+        /* Dark Purple Depth */
+        12px 12px 0px rgba(0, 0, 0, 0.2);
     margin-bottom: 1rem;
     transform: rotate(-3deg);
     animation: float 3s ease-in-out infinite;
@@ -59,7 +64,8 @@ h1 {
 
 .subtitle {
     font-family: 'Creepster', cursive;
-    color: #e1bee7; /* Light Purple/White tint */
+    color: #e1bee7;
+    /* Light Purple/White tint */
     font-size: 2rem;
     letter-spacing: 3px;
     text-transform: uppercase;
@@ -68,11 +74,13 @@ h1 {
     border: none;
     box-shadow: none;
     padding: 0;
-    
-    text-shadow: 
-        3px 3px 0px #2e003e, /* Matching dark purple shadow */
-        0 0 10px rgba(0,0,0,0.5);
-    transform: rotate(2deg); /* Slight counter-tilt */
+
+    text-shadow:
+        3px 3px 0px #2e003e,
+        /* Matching dark purple shadow */
+        0 0 10px rgba(0, 0, 0, 0.5);
+    transform: rotate(2deg);
+    /* Slight counter-tilt */
 }
 
 .menu-container {
@@ -87,28 +95,31 @@ h1 {
 button {
     position: relative;
     /* Bright Green Background */
-    background: #76ff03; 
+    background: #76ff03;
     color: #1a3300;
     font-size: 2rem;
     font-family: 'Creepster', cursive;
     padding: 10px 80px;
-    border: 4px solid #fff; /* White Border */
-    border-radius: 20px; /* Rounded corners like image */
+    border: 4px solid #fff;
+    /* White Border */
+    border-radius: 20px;
+    /* Rounded corners like image */
     cursor: pointer;
     text-transform: uppercase;
     letter-spacing: 2px;
     transition: transform 0.2s, box-shadow 0.2s;
-    box-shadow: 
-        0 6px 0 #4aa300, /* Darker green 3d part */
-        0 10px 10px rgba(0,0,0,0.3);
+    box-shadow:
+        0 6px 0 #4aa300,
+        /* Darker green 3d part */
+        0 10px 10px rgba(0, 0, 0, 0.3);
     min-width: 320px;
 }
 
 button:hover {
     transform: scale(1.05) translateY(-3px);
-    box-shadow: 
-        0 8px 0 #4aa300, 
-        0 15px 15px rgba(0,0,0,0.3);
+    box-shadow:
+        0 8px 0 #4aa300,
+        0 15px 15px rgba(0, 0, 0, 0.3);
     background: #95ff45;
 }
 
@@ -122,25 +133,153 @@ button:active {
     background: #9c27b0;
     color: white;
     border-color: #fff;
-    box-shadow: 
-        0 6px 0 #6a1b9a, /* Darker purple 3d part */
-        0 10px 10px rgba(0,0,0,0.3);
+    box-shadow:
+        0 6px 0 #6a1b9a,
+        /* Darker purple 3d part */
+        0 10px 10px rgba(0, 0, 0, 0.3);
 }
 
 .secondary-btn:hover {
     background: #ba68c8;
-    box-shadow: 
-        0 8px 0 #6a1b9a, 
-        0 15px 15px rgba(0,0,0,0.3);
+    box-shadow:
+        0 8px 0 #6a1b9a,
+        0 15px 15px rgba(0, 0, 0, 0.3);
 }
 
 .secondary-btn:active {
     box-shadow: 0 2px 0 #6a1b9a;
 }
 
+/* Remove focus outline on buttons */
+button:focus {
+    outline: none;
+}
+
+/* Settings Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    transition: opacity 0.3s ease;
+}
+
+.modal.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modal-content {
+    background: linear-gradient(145deg, #3a2055, #2a1540);
+    border: 4px solid #9c27b0;
+    border-radius: 24px;
+    padding: 2.5rem;
+    min-width: 400px;
+    max-width: 90%;
+    box-shadow:
+        0 0 30px rgba(156, 39, 176, 0.4),
+        0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+.modal-content h2 {
+    font-family: 'Creepster', cursive;
+    font-size: 3rem;
+    color: #b2ff59;
+    text-align: center;
+    margin-bottom: 2rem;
+    -webkit-text-stroke: 1px rgba(255, 255, 255, 0.5);
+    text-shadow: 3px 3px 0px #1a0025, 0 0 10px rgba(178, 255, 89, 0.3);
+}
+
+.setting-item {
+    margin-bottom: 1.5rem;
+}
+
+.setting-item label {
+    display: block;
+    font-family: 'Creepster', cursive;
+    font-size: 1.5rem;
+    color: #e1bee7;
+    margin-bottom: 0.5rem;
+}
+
+.slider-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.slider-container input[type="range"] {
+    flex: 1;
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #4a0066, #6a1b9a);
+    appearance: none;
+    cursor: pointer;
+}
+
+.slider-container input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #b2ff59;
+    border: 3px solid white;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.slider-container input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+
+.slider-container input[type="range"]::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #b2ff59;
+    border: 3px solid white;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+}
+
+.slider-container input[type="range"]:focus {
+    outline: none;
+}
+
+.slider-container span {
+    font-family: 'Roboto', sans-serif;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #b2ff59;
+    min-width: 50px;
+    text-align: right;
+}
+
+.modal-content button {
+    display: block;
+    margin: 2rem auto 0;
+    min-width: 200px;
+}
+
 @keyframes bounce {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    50% { transform: translateY(-10px) rotate(1deg); }
+
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+
+    50% {
+        transform: translateY(-10px) rotate(1deg);
+    }
 }
 
 .footer {
