@@ -15,6 +15,20 @@ const gameOverPage = document.getElementById("game-over-page");
 const retryBtn = document.getElementById("retry-btn");
 const homeBtn = document.getElementById("home-btn");
 
+// Game HUD & Score UI
+const gameHud = document.getElementById("game-hud");
+const distanceValueEl = document.getElementById("distance-value");
+const highScoreValueEl = document.getElementById("high-score-value");
+const finalDistanceEl = document.getElementById("final-distance");
+const bestScoreEl = document.getElementById("best-score");
+
+// Distance & High Score Tracking
+let currentDistance = 0;
+let highScore = parseInt(sessionStorage.getItem("zombrush_high_score")) || 0;
+
+// Update high score display on load
+highScoreValueEl.textContent = highScore + " m";
+
 // Settings UI
 const settingsBtn = document.getElementById("settings-btn");
 const settingsModal = document.getElementById("settings-modal");
@@ -29,12 +43,12 @@ const savedMusicVolume = localStorage.getItem("zombrush_music_volume") ?? 50;
 const savedSfxVolume = localStorage.getItem("zombrush_sfx_volume") ?? 70;
 
 // Background Music Setup
-const bgMusic = new Audio("./audio/Spook.mp3");
+const bgMusic = new Audio("./audio/spook.mp3");
 bgMusic.loop = true;
 bgMusic.volume = savedMusicVolume / 100;
 
 // Death Scream Sound Effect
-const screamSound = new Audio("./audio/male-scream.mp3");
+const screamSound = new Audio("./audio/male_scream.mp3");
 screamSound.volume = savedSfxVolume / 100;
 
 // Apply saved values to UI
@@ -85,7 +99,10 @@ sfxVolumeSlider.addEventListener("input", (e) => {
 
 playBtn.addEventListener("click", () => {
   landingPage.classList.add("hidden");
+  gameHud.classList.remove("hidden"); // Show HUD
   gameStarted = true;
+  currentDistance = 0; // Reset distance
+  distanceValueEl.textContent = "0";
   if (player) {
     player.visible = true;
   }
@@ -96,8 +113,11 @@ playBtn.addEventListener("click", () => {
 // Retry Button
 retryBtn.addEventListener("click", () => {
   gameOverPage.classList.add("hidden");
+  gameHud.classList.remove("hidden"); // Show HUD
   resetGame();
   gameStarted = true;
+  currentDistance = 0; // Reset distance
+  distanceValueEl.textContent = "0";
   if (player) player.visible = true;
   spawnInitialZombies();
   playMusic(); // Mulai musik lagi saat retry
@@ -111,6 +131,8 @@ homeBtn.addEventListener("click", () => {
   gameStarted = false; // Back to menu state
   if (player) player.visible = false;
   stopMusic(); // Stop musik saat kembali ke menu
+  // Update high score display on home
+  highScoreValueEl.textContent = highScore + " m";
 });
 
 function resetGame() {
@@ -266,6 +288,18 @@ function triggerGameOver(zombie) {
 // Fungsi buat nampilin layar game over (dipanggil setelah animasi death selesai)
 function showGameOverScreen() {
   gameOverPage.classList.remove("hidden");
+  gameHud.classList.add("hidden"); // Hide HUD
+
+  // Update final distance
+  const finalDistance = Math.floor(currentDistance);
+  finalDistanceEl.textContent = finalDistance + " m";
+
+  // Check and update high score
+  if (finalDistance > highScore) {
+    highScore = finalDistance;
+    sessionStorage.setItem("zombrush_high_score", highScore);
+  }
+  bestScoreEl.textContent = highScore + " m";
 
   // Ilangin player abis animasi death
   if (player) {
@@ -335,7 +369,7 @@ controls.update();
 
 // kasih tekstur tanah biar ga polos
 const textureLoader = new THREE.TextureLoader();
-const groundTexture = textureLoader.load("./img/ground.jpg");
+const groundTexture = textureLoader.load("./image/ground.jpg");
 groundTexture.wrapS = THREE.RepeatWrapping;
 groundTexture.wrapT = THREE.RepeatWrapping;
 groundTexture.repeat.set(400, 4);
@@ -404,7 +438,7 @@ function tintMaterial(material, color, rough = 0.7, metal = 0.05) {
 // Atur path model dan skala (scale) di sini
 const ZOMBIE_CONFIG = {
   zombie1: { // jalan
-    path: "./model/zombie2.glb", // Ganti jadi model zombie besar
+    path: "./model/enemy_zombie_walker.glb", // Ganti jadi model zombie besar
     scale: 1.4,
     attackAnim: "Attack",
     playerAnim: "Hit",    // Kena damage dulu
@@ -413,7 +447,7 @@ const ZOMBIE_CONFIG = {
     moveAnim: "walk"      // Jalan pelan
   },
   zombie2: { // merangkak / kecil
-    path: "./model/zombie1.glb",
+    path: "./model/enemy_zombie_crawler.glb",
     scale: 0.5,
     attackAnim: "Attack",
     playerAnim: "Hit",
@@ -421,7 +455,7 @@ const ZOMBIE_CONFIG = {
     attackLoop: "repeat"  // Gigit-gigit terus
   },
   zombie3: { // lari / besar
-    path: "./model/zombie2.glb",
+    path: "./model/enemy_zombie_walker.glb",
     scale: 1.4,
     attackAnim: "Bite",
     playerAnim: "Hit",
@@ -430,7 +464,7 @@ const ZOMBIE_CONFIG = {
     moveAnim: "Run"       // Lari kenceng
   },
   zombie4: { // terbang
-    path: "./model/bat.glb",
+    path: "./model/enemy_bat.glb",
     scale: 1.4,
     attackAnim: "Bite",
     playerAnim: "Death",    // Langsung Death biar halus (ga dua gerakan)
@@ -442,18 +476,18 @@ const ZOMBIE_CONFIG = {
 
 async function loadAssets() {
   const models = {
-    road: "./model/road.glb",
-    fence: "./model/iron-fence.glb",
-    fenceDamaged: "./model/iron-fence-damaged.glb",
-    tree: "./model/pine.glb",
-    grave: "./model/gravestone-cross.glb",
-    pumpkin: "./model/pumpkin-carved.glb",
-    lantern: "./model/lantern-candle.glb",
-    crypt: "./model/crypt.glb",
-    rock: "./model/rocks.glb",
-    trunk: "./model/trunk.glb",
-    debris: "./model/debris.glb",
-    shovel: "./model/shovel.glb",
+    road: "./model/env_road.glb",
+    fence: "./model/env_fence.glb",
+    fenceDamaged: "./model/env_fence_damaged.glb",
+    tree: "./model/env_tree.glb",
+    grave: "./model/env_gravestone.glb",
+    pumpkin: "./model/prop_pumpkin.glb",
+    lantern: "./model/prop_lantern.glb",
+    crypt: "./model/env_crypt.glb",
+    rock: "./model/env_rock.glb",
+    trunk: "./model/env_trunk.glb",
+    debris: "./model/env_debris.glb",
+    shovel: "./model/prop_shovel.glb",
     zombie1: ZOMBIE_CONFIG.zombie1.path,
     zombie2: ZOMBIE_CONFIG.zombie2.path,
     zombie3: ZOMBIE_CONFIG.zombie3.path,
@@ -502,7 +536,7 @@ function loadPlayer() {
   return new Promise((resolve, reject) => {
     // Gunakan GLTFLoader karena file .glb
     loader.load(
-      "./model/Adventurer.glb",
+      "./model/player.glb",
       (gltf) => {
         player = gltf.scene;
 
@@ -969,6 +1003,12 @@ function updateDifficulty(delta) {
 function draw() {
   requestAnimationFrame(draw);
   const delta = clock.getDelta();
+
+  // Update distance tracking
+  if (gameStarted) {
+    currentDistance += game_speed * delta;
+    distanceValueEl.textContent = Math.floor(currentDistance);
+  }
 
   updateDifficulty(delta * 5);
   // console.log(game_speed);

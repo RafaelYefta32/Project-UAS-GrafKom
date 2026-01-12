@@ -37,9 +37,11 @@ body {
 
 .title-container {
     position: relative;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     text-align: center;
-    transform: rotate(-3deg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 h1 {
@@ -57,8 +59,7 @@ h1 {
         6px 6px 0px #2e003e,
         /* Dark Purple Depth */
         12px 12px 0px rgba(0, 0, 0, 0.2);
-    margin-bottom: 1rem;
-    transform: rotate(-3deg);
+    margin-bottom: 0.5rem;
     animation: float 3s ease-in-out infinite;
 }
 
@@ -74,13 +75,127 @@ h1 {
     border: none;
     box-shadow: none;
     padding: 0;
-
     text-shadow:
         3px 3px 0px #2e003e,
         /* Matching dark purple shadow */
         0 0 10px rgba(0, 0, 0, 0.5);
-    transform: rotate(2deg);
-    /* Slight counter-tilt */
+}
+
+/* High Score Display on Landing Page */
+.high-score-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 1rem;
+    padding: 1rem 2rem;
+    background: rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(178, 255, 89, 0.5);
+    border-radius: 16px;
+}
+
+.high-score-display span:first-child {
+    font-family: 'Creepster', cursive;
+    font-size: 1.2rem;
+    color: #e1bee7;
+    letter-spacing: 2px;
+}
+
+.high-score-display span:last-child {
+    font-family: 'Creepster', cursive;
+    font-size: 2.5rem;
+    color: #b2ff59;
+    text-shadow: 2px 2px 0px #2e003e;
+}
+
+/* Game HUD - Distance Meter */
+#game-hud {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    pointer-events: none;
+}
+
+#game-hud.hidden {
+    display: none;
+}
+
+.distance-display {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.8rem 2rem;
+    background: rgba(0, 0, 0, 0.6);
+    border: 3px solid #b2ff59;
+    border-radius: 50px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+#distance-value {
+    font-family: 'Creepster', cursive;
+    font-size: 3rem;
+    color: #b2ff59;
+    text-shadow: 2px 2px 0px #2e003e;
+    min-width: 60px;
+    text-align: center;
+}
+
+.distance-unit {
+    font-family: 'Roboto', sans-serif;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #e1bee7;
+}
+
+/* Score Container on Game Over */
+.score-container {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.final-score,
+.best-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem 2rem;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 16px;
+    min-width: 150px;
+}
+
+.final-score {
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.best-score {
+    border: 2px solid rgba(178, 255, 89, 0.5);
+}
+
+.final-score span:first-child,
+.best-score span:first-child {
+    font-family: 'Creepster', cursive;
+    font-size: 1rem;
+    color: #e1bee7;
+    letter-spacing: 1px;
+}
+
+.final-score span:last-child {
+    font-family: 'Creepster', cursive;
+    font-size: 2rem;
+    color: white;
+    text-shadow: 2px 2px 0px #3e0000;
+}
+
+.best-score span:last-child {
+    font-family: 'Creepster', cursive;
+    font-size: 2rem;
+    color: #b2ff59;
+    text-shadow: 2px 2px 0px #2e003e;
 }
 
 .menu-container {
