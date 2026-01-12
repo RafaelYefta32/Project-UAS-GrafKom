@@ -22,9 +22,20 @@ const highScoreValueEl = document.getElementById("high-score-value");
 const finalDistanceEl = document.getElementById("final-distance");
 const bestScoreEl = document.getElementById("best-score");
 
+// Shield UI
+const shieldBarContainer = document.getElementById("shield-bar-container");
+const shieldBarFill = document.getElementById("shield-bar-fill");
+
 // Distance & High Score Tracking
 let currentDistance = 0;
 let highScore = parseInt(sessionStorage.getItem("zombrush_high_score")) || 0;
+
+// Shield Power-up State
+let hasShield = false;
+let shieldDuration = 0;
+const SHIELD_MAX_DURATION = 10; // 10 seconds
+let playerShieldMesh = null; // Shield attached to player
+let shieldPickups = []; // Shield items on the ground
 
 // Update high score display on load
 highScoreValueEl.textContent = highScore + " m";
@@ -168,6 +179,19 @@ function resetGame() {
       runAction.play();
     }
   }
+
+  // Reset shield
+  hasShield = false;
+  shieldDuration = 0;
+  shieldBarContainer.classList.add("hidden");
+  if (playerShieldMesh) {
+    scene.remove(playerShieldMesh);
+    playerShieldMesh = null;
+  }
+
+  // Clear shield pickups
+  shieldPickups.forEach(s => scene.remove(s));
+  shieldPickups = [];
 }
 
 function triggerGameOver(zombie) {
@@ -323,6 +347,9 @@ function checkCollisions() {
   }
 
   for (let zombie of zombies) {
+    // Skip zombie yang sudah mati
+    if (zombie.userData.isDead) continue;
+
     // Kalau lagi roll dan ketemu kelelawar, skip collision (alias lolos)
     if (isRolling && zombie.userData.type === 'zombie4') {
       continue;
@@ -338,8 +365,14 @@ function checkCollisions() {
     // Zombie biasa biarin hitbox aslinya biar zombie merangkak kedetect
 
     if (playerBox.intersectsBox(zombieBox)) {
-      triggerGameOver(zombie);
-      break;
+      // Jika punya shield, bunuh zombie
+      if (hasShield) {
+        killZombie(zombie);
+      } else {
+        // Tidak punya shield, game over
+        triggerGameOver(zombie);
+        break;
+      }
     }
   }
 }
@@ -488,6 +521,7 @@ async function loadAssets() {
     trunk: "./model/env_trunk.glb",
     debris: "./model/env_debris.glb",
     shovel: "./model/prop_shovel.glb",
+    shield: "./model/prop_shield.glb",
     zombie1: ZOMBIE_CONFIG.zombie1.path,
     zombie2: ZOMBIE_CONFIG.zombie2.path,
     zombie3: ZOMBIE_CONFIG.zombie3.path,
@@ -502,6 +536,11 @@ async function loadAssets() {
       if (c.isMesh) {
         c.castShadow = true;
         c.receiveShadow = true;
+
+        // Skip material modification for shield - keep original
+        if (key === "shield") {
+          return;
+        }
 
         if (c.material.map) {
           c.material.map.anisotropy = 16;
@@ -685,19 +724,35 @@ function spawnOneZombie(modelKey, x, z) {
       clip = resource.animations.find(a => a.name.toLowerCase().includes(config.moveAnim.toLowerCase()));
     }
 
-    // Fallback
+    // Fallback dengan urutan prioritas
     if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("run"));
     if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("walk"));
     if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("fly")); // Buat kelelawar
-    if (!clip) clip = resource.animations[8] || resource.animations[0];
+    if (!clip) clip = resource.animations.find(a => a.name.toLowerCase().includes("idle"));
 
-    // Hapus track posisi root
-    const tracks = clip.tracks.filter(t => !t.name.endsWith(".position"));
-    const fixedClip = new THREE.AnimationClip(clip.name, clip.duration, tracks);
+    // Final fallback - gunakan animasi pertama yang ada
+    if (!clip && resource.animations.length > 0) {
+      clip = resource.animations[0];
+    }
 
-    const action = mixer.clipAction(fixedClip);
-    action.play();
-    zombie.userData.mixer = mixer;
+    if (clip) {
+      // PENTING: Clone clip untuk setiap zombie agar tidak ada konflik cache
+      const clonedClip = clip.clone();
+      // Beri nama unik untuk menghindari cache Three.js
+      clonedClip.name = clonedClip.name + "_" + Date.now() + "_" + Math.random();
+
+      const action = mixer.clipAction(clonedClip);
+      action.loop = THREE.LoopRepeat;
+      action.clampWhenFinished = false;
+      action.timeScale = 1;
+      action.weight = 1;
+      action.enabled = true;
+      action.reset();
+      action.play();
+
+      zombie.userData.mixer = mixer;
+      zombie.userData.currentAction = action;
+    }
   }
 
   zombie.traverse((c) => {
@@ -713,7 +768,7 @@ function spawnOneZombie(modelKey, x, z) {
 
 function spawnInitialZombies() {
   const zombieTypes = ["zombie1", "zombie2", "zombie3", "zombie4"];
-  let zPos = -60;
+  let zPos = -80; // Start further back
 
   // Spawn 12 gelombang
   for (let i = 0; i < 12; i++) {
@@ -731,7 +786,200 @@ function spawnInitialZombies() {
       spawnOneZombie(type, laneX[lane], zPos);
     }
 
-    zPos -= (25 + Math.random() * 15);
+    zPos -= (35 + Math.random() * 20); // Larger gap between waves
+  }
+}
+
+// ============ SHIELD POWER-UP SYSTEM ============
+
+// Spawn shield pickup item
+function spawnShieldPickup(z) {
+  if (!assets.shield) return;
+
+  const shield = assets.shield.clone();
+  const lane = Math.floor(Math.random() * 3);
+  shield.position.set(laneX[lane], 1.0, z); // Higher position
+  shield.scale.set(0.5, 0.5, 0.5); // Even smaller pickup size
+
+  // Add glow effect for visibility
+  shield.traverse((c) => {
+    if (c.isMesh) {
+      c.material = c.material.clone();
+      c.material.emissive = new THREE.Color(0x00bcd4);
+      c.material.emissiveIntensity = 0.5;
+    }
+  });
+
+  shield.userData.rotationSpeed = 2; // For animation
+  shield.userData.floatOffset = Math.random() * Math.PI * 2;
+
+  scene.add(shield);
+  shieldPickups.push(shield);
+}
+
+// Timer for spawning shields
+let shieldSpawnTimer = 0;
+const SHIELD_SPAWN_INTERVAL = 1; // Spawn every 15 seconds
+
+// Update shield pickups (animation & movement)
+function updateShieldPickups(delta) {
+  const time = Date.now() * 0.001;
+
+  for (let i = shieldPickups.length - 1; i >= 0; i--) {
+    const shield = shieldPickups[i];
+
+    // Only animate and move if game is running
+    if (gameStarted) {
+      // Animate: rotate and float
+      shield.rotation.y += shield.userData.rotationSpeed * delta;
+      shield.position.y = 1.0 + Math.sin(time * 3 + shield.userData.floatOffset) * 0.3;
+
+      // Move towards player (like zombies)
+      shield.position.z += (game_speed + 2) * delta;
+    }
+
+    // Remove if passed player
+    if (shield.position.z > 15) {
+      scene.remove(shield);
+      shieldPickups.splice(i, 1);
+    }
+  }
+
+  // Spawn new shields periodically
+  if (gameStarted) {
+    shieldSpawnTimer += delta;
+    if (shieldSpawnTimer >= SHIELD_SPAWN_INTERVAL && !hasShield) {
+      shieldSpawnTimer = 0;
+      // Spawn shield far behind
+      const minZ = zombies.length > 0 ? Math.min(...zombies.map(z => z.position.z)) : -60;
+      spawnShieldPickup(minZ - 20);
+    }
+  }
+}
+
+// Check if player picks up shield
+function checkShieldPickup() {
+  if (!player || !gameStarted) return;
+
+  const playerBox = new THREE.Box3().setFromObject(player);
+  playerBox.expandByScalar(-0.3);
+
+  for (let i = shieldPickups.length - 1; i >= 0; i--) {
+    const shield = shieldPickups[i];
+    const shieldBox = new THREE.Box3().setFromObject(shield);
+
+    if (playerBox.intersectsBox(shieldBox)) {
+      // Pickup shield! (or refill if already has shield)
+      if (hasShield) {
+        // Already has shield - just refill timer
+        shieldDuration = SHIELD_MAX_DURATION;
+        shieldBarFill.style.width = "100%";
+      } else {
+        // Activate new shield
+        activateShield();
+      }
+      scene.remove(shield);
+      shieldPickups.splice(i, 1);
+      break;
+    }
+  }
+}
+
+// Activate shield power-up
+function activateShield() {
+  hasShield = true;
+  shieldDuration = SHIELD_MAX_DURATION;
+
+  // Show shield bar UI
+  shieldBarContainer.classList.remove("hidden");
+  shieldBarFill.style.width = "100%";
+
+  // Create shield mesh attached to player
+  if (assets.shield) {
+    playerShieldMesh = assets.shield.clone();
+    playerShieldMesh.scale.set(1.0, 1.0, 1.0); // Smaller shield
+    playerShieldMesh.position.set(0, 1.5, -1); // Higher position, in front of player
+    playerShieldMesh.rotation.set(0, Math.PI, 0); // Face forward (towards camera)
+
+    // Use original material/color - no modifications
+    scene.add(playerShieldMesh);
+  }
+}
+
+// Update shield duration and position
+function updateShield(delta) {
+  if (!hasShield) return;
+
+  shieldDuration -= delta;
+
+  // Update UI bar
+  const percent = (shieldDuration / SHIELD_MAX_DURATION) * 100;
+  shieldBarFill.style.width = percent + "%";
+
+  // Update shield position (follow player)
+  if (playerShieldMesh && player) {
+    playerShieldMesh.position.x = player.position.x;
+    playerShieldMesh.position.z = player.position.z - 1;
+    playerShieldMesh.position.y = player.position.y + 1.5; // Higher position
+    // Shield stays facing forward (no spin)
+  }
+
+  // Deactivate if duration ends
+  if (shieldDuration <= 0) {
+    deactivateShield();
+  }
+}
+
+// Deactivate shield
+function deactivateShield() {
+  hasShield = false;
+  shieldDuration = 0;
+  shieldBarContainer.classList.add("hidden");
+
+  if (playerShieldMesh) {
+    scene.remove(playerShieldMesh);
+    playerShieldMesh = null;
+  }
+}
+
+// Kill zombie when hit by shielded player
+function killZombie(zombie) {
+  const resource = assetResources[zombie.userData.type];
+
+  if (resource && resource.animations && zombie.userData.mixer) {
+    // Find death/die animation
+    const deathClip = resource.animations.find(a =>
+      a.name.toLowerCase().includes("death") ||
+      a.name.toLowerCase().includes("die")
+    );
+
+    if (deathClip) {
+      zombie.userData.mixer.stopAllAction();
+      const action = zombie.userData.mixer.clipAction(deathClip);
+      action.loop = THREE.LoopOnce;
+      action.clampWhenFinished = true;
+      action.reset();
+      action.play();
+
+      // Mark as dead so it doesn't count for collision
+      zombie.userData.isDead = true;
+
+      // Remove after 3 seconds (animation plays first)
+      setTimeout(() => {
+        scene.remove(zombie);
+        const idx = zombies.indexOf(zombie);
+        if (idx > -1) zombies.splice(idx, 1);
+      }, 3000);
+    } else {
+      // No death anim, just remove
+      scene.remove(zombie);
+      const idx = zombies.indexOf(zombie);
+      if (idx > -1) zombies.splice(idx, 1);
+    }
+  } else {
+    scene.remove(zombie);
+    const idx = zombies.indexOf(zombie);
+    if (idx > -1) zombies.splice(idx, 1);
   }
 }
 
@@ -993,9 +1241,9 @@ function updateDifficulty(delta) {
       const laneIndex = availableLanes[i];
       const type = selectedTypes[i];
 
-      // Spawn agak jauh di belakang, kasih variasi jarak dikit biar gak terlalu baris
-      const offsetZ = Math.random() * 5;
-      spawnOneZombie(type, laneX[laneIndex], minZ - 10 - offsetZ);
+      // Spawn lebih jauh di belakang
+      const offsetZ = Math.random() * 10;
+      spawnOneZombie(type, laneX[laneIndex], minZ - 30 - offsetZ);
     }
   }
 }
@@ -1009,6 +1257,11 @@ function draw() {
     currentDistance += game_speed * delta;
     distanceValueEl.textContent = Math.floor(currentDistance);
   }
+
+  // Update shield system
+  updateShieldPickups(delta);
+  updateShield(delta);
+  checkShieldPickup();
 
   updateDifficulty(delta * 5);
   // console.log(game_speed);
@@ -1072,23 +1325,12 @@ function draw() {
       // Logika pergerakan zombie
       zombie.position.z += (game_speed + 2) * delta;
 
-      if (zombie.position.z > 10) {
-        // Recycle ke belakang
-        const minZ = Math.min(...zombies.map(z => z.position.z));
-
-        // Chance untuk grouping/sejajar
-        const gap = Math.random() < 0.3 ? 0 : (15 + Math.random() * 10);
-        zombie.position.z = minZ - gap;
-
-        if (gap === 0) {
-          // Cari lane yang kosong di minZ
-          const buddy = zombies.find(z => Math.abs(z.position.z - minZ) < 3.5);
-          const busyLaneX = buddy ? buddy.position.x : -999;
-          const availableLanes = laneX.filter(x => x !== busyLaneX);
-          zombie.position.x = availableLanes.length > 0 ? availableLanes[Math.floor(Math.random() * availableLanes.length)] : laneX[Math.floor(Math.random() * 3)];
-        } else {
-          zombie.position.x = laneX[Math.floor(Math.random() * 3)];
-        }
+      // Despawn zombie jika sudah terlalu jauh di depan
+      if (zombie.position.z > 15) {
+        scene.remove(zombie);
+        const idx = zombies.indexOf(zombie);
+        if (idx > -1) zombies.splice(idx, 1);
+        return;
       }
     }
   });
