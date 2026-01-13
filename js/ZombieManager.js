@@ -23,7 +23,7 @@ export class ZombieManager {
         this.maxActiveZombies = 12;
     }
 
-    spawnOneZombie(modelKey, x, z) {
+    spawnOneZombie(modelKey, x, z) { // AI
         const resource = this.assetResources[modelKey];
         if (!resource) return;
 
@@ -106,7 +106,7 @@ export class ZombieManager {
         this.zombies.push(zombie);
     }
 
-    spawnInitialZombies() {
+    spawnInitialZombies() { // AI
         const zombieTypes = ["zombie1", "zombie2", "zombie3", "zombie4"];
         let zPos = -80;
 
@@ -129,7 +129,7 @@ export class ZombieManager {
         }
     }
 
-    update(delta, gameSpeed, gameStarted, distance = 0) {
+    update(delta, gameSpeed, gameStarted, distance = 0) { // AI
         if (!gameStarted && this.zombies.length === 0) return;
 
         // Update mixers and movement
@@ -216,7 +216,7 @@ export class ZombieManager {
         }
     }
 
-    playAnimation(zombie, animName, loopType = THREE.LoopRepeat) {
+    playAnimation(zombie, animName, loopType = THREE.LoopRepeat) { // AI
         if (!zombie || !zombie.userData.mixer) return;
         const resource = this.assetResources[zombie.userData.type];
         if (!resource || !resource.animations) return;
@@ -238,7 +238,6 @@ export class ZombieManager {
             action.reset();
             action.play();
         } else if (animName === 'Death') {
-            // If explicit Death requested but no clip found, stop animation so it doesn't keep running
             zombie.userData.mixer.stopAllAction();
         }
     }

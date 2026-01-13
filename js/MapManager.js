@@ -38,7 +38,7 @@ export class MapManager {
         segmentGroup.add(mesh);
 
         // Road (random gaps)
-        if (this.assets.road) {
+        if (this.assets.road) { // AI
             for (let z = 0; z < segment_length; z += 2) {
                 const lanes = [-2.5, 0, 2.5];
                 lanes.forEach((x) => {
@@ -54,7 +54,7 @@ export class MapManager {
         }
 
         // Fences
-        for (let z = -segment_length / 2; z < segment_length / 2; z += 4) {
+        for (let z = -segment_length / 2; z < segment_length / 2; z += 4) { // AI
             if (Math.random() < 0.8) {
                 const model = Math.random() > 0.5 ? this.assets.fence : this.assets.fenceDamaged;
                 if (model) {
@@ -78,7 +78,7 @@ export class MapManager {
         }
 
         // Roadside Decorations (Trees, Lanterns)
-        for (let z = -segment_length / 2; z < segment_length / 2; z += 5) {
+        for (let z = -segment_length / 2; z < segment_length / 2; z += 5) { // AI
             if (this.assets.tree && Math.random() > 0.3) {
                 const tree = this.assets.tree.clone();
                 const isLeft = Math.random() > 0.5;
@@ -100,7 +100,7 @@ export class MapManager {
 
         // Outer Objects
         const scatterCount = 20;
-        for (let i = 0; i < scatterCount; i++) {
+        for (let i = 0; i < scatterCount; i++) { // AI
             const isLeft = Math.random() > 0.5;
             const xOut = isLeft ? -15 - Math.random() * 30 : 15 + Math.random() * 30;
             const zOut = (Math.random() - 0.5) * segment_length;
@@ -145,7 +145,7 @@ export class MapManager {
         }
     }
 
-    update(delta, speed) {
+    update(delta, speed) { // AI
         if (speed <= 0) return;
 
         this.segments.forEach((segment) => {

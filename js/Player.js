@@ -49,6 +49,7 @@ export class Player {
             this.mixer = new THREE.AnimationMixer(this.mesh);
             const animations = gltf.animations;
 
+            // AI
             const clipRun = animations.find(a => a.name.toLowerCase().includes('run'));
             const clipJump = animations.find(a => a.name.toLowerCase().includes('jump')) || animations.find(a => a.name.toLowerCase().includes('attack'));
             const clipRoll = animations.find(a => a.name.toLowerCase().includes('roll'));
@@ -92,7 +93,7 @@ export class Player {
         if (onLoaded) onLoaded();
     }
 
-    onAnimationFinished(e) {
+    onAnimationFinished(e) { // AI
         // Roll finished
         if (e.action === this.rollAction) {
             this.isRolling = false;
@@ -152,7 +153,7 @@ export class Player {
             if (this.currentLane > 0) this.currentLane--;
         } else if (key === "d" || key === "ArrowRight") {
             if (this.currentLane < 2) this.currentLane++;
-        } else if ((key === "w" || key === "ArrowUp") && !this.isJumping && !this.isRolling) {
+        } else if ((key === "w" || key === "ArrowUp") && !this.isJumping && !this.isRolling) { // AI
             this.isJumping = true;
             this.jumpVelocity = this.jumpForce;
 
@@ -161,7 +162,7 @@ export class Player {
                 this.jumpAction.reset();
                 this.jumpAction.play();
             }
-        } else if ((key === "s" || key === "ArrowDown") && !this.isRolling && !this.isJumping) {
+        } else if ((key === "s" || key === "ArrowDown") && !this.isRolling && !this.isJumping) { // AI
             this.isRolling = true;
             if (this.rollAction && this.runAction) {
                 this.runAction.crossFadeTo(this.rollAction, 0.1, true);
@@ -171,7 +172,7 @@ export class Player {
         }
     }
 
-    update(delta, gameSpeed, startSpeed) {
+    update(delta, gameSpeed, startSpeed) { // AI
         if (this.mixer) {
             const speedRatio = Math.min(gameSpeed / startSpeed, 1.5);
             if (this.runAction) this.runAction.timeScale = speedRatio;
@@ -201,7 +202,7 @@ export class Player {
         }
     }
 
-    triggerDeath(killerType) {
+    triggerDeath(killerType) { // AI
         this.isDying = true;
         this.killerType = killerType;
 
@@ -243,7 +244,7 @@ export class Player {
         }
     }
 
-    getBoundingBox() {
+    getBoundingBox() { // AI
         this.mesh.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(this.mesh);
         box.expandByScalar(-0.5);

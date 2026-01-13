@@ -16,7 +16,7 @@ export class AudioManager {
 
     playMusic() {
         this.bgMusic.currentTime = 0;
-        this.bgMusic.play().catch(e => console.log("Audio play blocked:", e));
+        this.bgMusic.play();
     }
 
     stopMusic() {
@@ -26,7 +26,7 @@ export class AudioManager {
 
     playScream() {
         this.screamSound.currentTime = 0;
-        this.screamSound.play().catch(e => console.log("Scream audio blocked:", e));
+        this.screamSound.play();
     }
 
     setMusicVolume(value) {

@@ -86,7 +86,7 @@ export class ShieldManager {
         }
     }
 
-    update(delta, gameStarted, gameSpeed, player, zombieManager) {
+    update(delta, gameStarted, gameSpeed, player, zombieManager) { // AI
         // Update pickups
         const time = Date.now() * 0.001;
         for (let i = this.shieldPickups.length - 1; i >= 0; i--) {

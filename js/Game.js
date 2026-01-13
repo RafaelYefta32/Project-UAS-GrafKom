@@ -105,7 +105,6 @@ export class Game {
         this.zombieManager = new ZombieManager(this.scene, resources);
         this.shieldManager = new ShieldManager(this.scene, assets, this.uiManager);
 
-        // Setup UI Callbacks
         this.uiManager.onPlay(() => this.startGame());
         this.uiManager.onRetry(() => this.retryGame());
         this.uiManager.onHome(() => this.goHome());
@@ -171,7 +170,7 @@ export class Game {
         this.audioManager.playScream();
 
         // Zombie Attack Animation
-        if (zombie) {
+        if (zombie) { // AI
             const config = ZOMBIE_CONFIG[zombie.userData.type];
             const loopType = (config && config.attackLoop === "repeat") ? THREE.LoopRepeat : THREE.LoopOnce;
 
@@ -195,7 +194,7 @@ export class Game {
         if (this.player) this.player.mesh.visible = false;
     }
 
-    checkCollisions() {
+    checkCollisions() { // AI
         if (!this.player || !this.gameStarted || this.player.isDying) return;
 
         const playerBox = this.player.getBoundingBox();

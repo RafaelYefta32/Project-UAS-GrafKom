@@ -1,4 +1,4 @@
-export const ZOMBIE_CONFIG = {
+export const ZOMBIE_CONFIG = { // AI
     zombie1: {
         path: "./model/enemy_white_zombie.glb",
         scale: 0.35,
